@@ -47,7 +47,6 @@ else:
 
     st.sidebar.metric("Salário", f"R$ {salario:.2f}")
 
-    # META
     with st.sidebar.expander("🎯 Meta Financeira"):
         nova_meta = st.number_input("Meta mensal", value=float(meta))
         if st.button("Salvar Meta"):
@@ -67,7 +66,6 @@ else:
     df = banco.buscar_gastos(st.session_state.user)
     df = utils.preparar_dados(df)
 
-    # DASHBOARD
     if escolha == "Dashboard":
         st.title("📊 Dashboard")
 
@@ -131,7 +129,6 @@ else:
         else:
             st.info("Sem dados")
 
-    # NOVO GASTO
     elif escolha == "Novo Gasto":
         st.title("💸 Novo Gasto")
 
@@ -147,7 +144,6 @@ else:
                 st.success("Salvo")
                 st.rerun()
 
-    # ADMIN
     elif escolha == "Admin":
         st.title("👥 Admin")
 
