@@ -108,6 +108,13 @@ def alterar_nivel(u, n):
         c.execute("UPDATE usuarios SET nivel=%s WHERE usuario=%s", (n, u))
     conn.commit()
 
+def deletar_usuario(usuario):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("DELETE FROM gastos WHERE usuario=%s", (usuario,))
+        c.execute("DELETE FROM usuarios WHERE usuario=%s", (usuario,))
+    conn.commit()
+
 # ================= SALÁRIO / META =================
 def buscar_salario(u):
     conn = conectar()
