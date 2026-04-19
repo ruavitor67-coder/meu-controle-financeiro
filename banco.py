@@ -1,11 +1,16 @@
 import sqlite3
 import hashlib
 import pandas as pd
+import streamlit as st
 
 def conectar():
     return sqlite3.connect('dados_app.db', check_same_thread=False)
 
 def criar_tabelas():
+    # Busca informações nos Secrets. Se não houver, usa o padrão admin/admin123
+    admin_fixo = st.secrets.get("ADMIN_USER", "admin")
+    senha_fixa = st.secrets.get("ADMIN_PASSWORD", "admin123")
+    
     with conectar() as conn:
         c = conn.cursor()
         c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
@@ -21,10 +26,17 @@ def criar_tabelas():
         except:
             pass
             
-        c.execute("SELECT usuario FROM usuarios WHERE usuario = 'admin'")
-        if not c.fetchone():
-            hash_padrao = hashlib.sha256("admin123".encode()).hexdigest()
-            c.execute("INSERT INTO usuarios (usuario, senha, nivel, salario) VALUES ('admin', ?, 'admin', 0)", (hash_padrao,))
+        # Lógica de persistência:
+        # 1. Verifica se o admin já existe para pegar o salário atual dele
+        c.execute("SELECT salario FROM usuarios WHERE usuario = ?", (admin_fixo,))
+        res = c.fetchone()
+        salario_atual = res[0] if res else 0.0
+        
+        # 2. Atualiza ou Insere o admin com a senha dos Secrets
+        # Isso garante que no reboot a senha do 'Secrets' seja a oficial
+        hash_mestre = hashlib.sha256(senha_fixa.encode()).hexdigest()
+        c.execute("""INSERT OR REPLACE INTO usuarios (usuario, senha, nivel, salario) 
+                     VALUES (?, ?, 'admin', ?)""", (admin_fixo, hash_mestre, salario_atual))
         
         conn.commit()
 
@@ -93,7 +105,9 @@ def alterar_nivel_usuario(nome, nivel):
         return True
 
 def deletar_usuario(nome):
-    if nome.lower() == 'admin': return False
+    # Protege o usuário definido nos secrets de ser deletado
+    admin_fixo = st.secrets.get("ADMIN_USER", "admin")
+    if nome.lower() == admin_fixo.lower(): return False
     try:
         with conectar() as conn:
             c = conn.cursor()
