@@ -13,10 +13,8 @@ def criar_tabelas():
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
-    
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
-    
     conn.commit()
     conn.close()
 
@@ -51,7 +49,16 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
 
 def buscar_gastos(usuario, nivel):
     conn = conectar()
-    query = "SELECT data, categoria, descricao, valor FROM gastos WHERE usuario=?"
+    # Buscamos o ID também para podermos deletar depois
+    query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
     df = pd.read_sql(query, conn, params=(usuario,))
     conn.close()
     return df
+
+# NOVA FUNÇÃO PARA EXCLUIR
+def deletar_gasto(id_gasto):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM gastos WHERE id=?", (id_gasto,))
+    conn.commit()
+    conn.close()
