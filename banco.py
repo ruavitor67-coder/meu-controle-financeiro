@@ -1,19 +1,32 @@
 import psycopg2
 import streamlit as st
+import time
 from passlib.hash import pbkdf2_sha256
 
 
+# ================= CONEXÃO BLINDADA =================
 def conectar():
-    return psycopg2.connect(
-        host=st.secrets["DB_HOST"],
-        database=st.secrets["DB_NAME"],
-        user=st.secrets["DB_USER"],
-        password=st.secrets["DB_PASS"],
-        port=st.secrets["DB_PORT"],
-        sslmode="require"
-    )
+    for tentativa in range(5):
+        try:
+            conn = psycopg2.connect(
+                host=st.secrets["DB_HOST"],
+                database=st.secrets["DB_NAME"],
+                user=st.secrets["DB_USER"],
+                password=st.secrets["DB_PASS"],
+                port=st.secrets["DB_PORT"],
+                sslmode="require",
+                connect_timeout=10
+            )
+            return conn
+
+        except Exception as e:
+            print(f"Tentativa {tentativa+1} falhou:", e)
+            time.sleep(2)
+
+    raise Exception("❌ Não conseguiu conectar ao banco")
 
 
+# ================= CRIAR TABELAS =================
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
@@ -54,13 +67,14 @@ def criar_tabelas():
     conn.close()
 
 
-# LOGIN
+# ================= LOGIN =================
 def validar_login(usuario, senha):
     conn = conectar()
     c = conn.cursor()
 
     c.execute("SELECT senha, nivel FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
+
     conn.close()
 
     if r and pbkdf2_sha256.verify(senha, r[0]):
@@ -69,7 +83,7 @@ def validar_login(usuario, senha):
     return None
 
 
-# USUÁRIO
+# ================= USUÁRIOS =================
 def criar_usuario(u, email, s, nivel):
     conn = conectar()
     c = conn.cursor()
@@ -99,15 +113,17 @@ def listar_usuarios():
 def excluir_usuario(u):
     conn = conectar()
     c = conn.cursor()
+
     c.execute("DELETE FROM usuarios WHERE usuario=%s", (u,))
     conn.commit()
     conn.close()
 
 
-# SALARIO / META
+# ================= SALARIO / META =================
 def atualizar_salario(u, v):
     conn = conectar()
     c = conn.cursor()
+
     c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
     conn.commit()
     conn.close()
@@ -116,12 +132,13 @@ def atualizar_salario(u, v):
 def atualizar_meta(u, v):
     conn = conectar()
     c = conn.cursor()
+
     c.execute("UPDATE usuarios SET meta=%s WHERE usuario=%s", (v, u))
     conn.commit()
     conn.close()
 
 
-# GASTOS
+# ================= GASTOS =================
 def salvar_gasto(u, data, cat, desc, valor, status):
     conn = conectar()
     c = conn.cursor()
@@ -139,7 +156,11 @@ def listar_gastos(u):
     conn = conectar()
     c = conn.cursor()
 
-    c.execute("SELECT data,categoria,descricao,valor,status FROM gastos WHERE usuario=%s", (u,))
+    c.execute("""
+    SELECT data, categoria, descricao, valor, status 
+    FROM gastos WHERE usuario=%s
+    """, (u,))
+
     dados = c.fetchall()
 
     conn.close()
