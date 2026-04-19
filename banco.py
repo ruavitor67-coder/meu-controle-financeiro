@@ -3,11 +3,13 @@ import hashlib
 import pandas as pd
 
 def conectar():
+    # check_same_thread=False é vital para apps web como o Streamlit
     return sqlite3.connect('dados_app.db', check_same_thread=False)
 
 def criar_tabelas():
     with conectar() as conn:
         c = conn.cursor()
+        # Criação das tabelas base
         c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                      (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
         c.execute('''CREATE TABLE IF NOT EXISTS gastos 
@@ -15,14 +17,14 @@ def criar_tabelas():
                       categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')''')
         c.execute('''CREATE TABLE IF NOT EXISTS metas 
                      (usuario TEXT, categoria TEXT, limite REAL, PRIMARY KEY(usuario, categoria))''')
-        try:
-            c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
+        
+        # Garante que colunas novas existam caso o banco seja antigo
+        try: c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
         except: pass
-        try:
-            c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
+        try: c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
         except: pass
         
-        # Admin padrão
+        # Criação do admin padrão
         senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
         c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
         conn.commit()
@@ -51,6 +53,7 @@ def atualizar_salario(usuario, valor):
 def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
     with conectar() as conn:
         c = conn.cursor()
+        # CORREÇÃO CRÍTICA: 6 colunas e 6 pontos de interrogação
         c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor, status) VALUES (?, ?, ?, ?, ?, ?)",
                   (usuario, str(data), categoria, descricao, valor, status))
         conn.commit()
