@@ -21,18 +21,10 @@ def criar_tabelas():
         CREATE TABLE IF NOT EXISTS usuarios (
             usuario TEXT PRIMARY KEY,
             senha TEXT,
-            nivel TEXT
+            nivel TEXT,
+            salario REAL DEFAULT 0,
+            meta REAL DEFAULT 0
         )
-        """)
-
-        c.execute("""
-        ALTER TABLE usuarios
-        ADD COLUMN IF NOT EXISTS salario REAL DEFAULT 0
-        """)
-
-        c.execute("""
-        ALTER TABLE usuarios
-        ADD COLUMN IF NOT EXISTS meta REAL DEFAULT 0
         """)
 
         c.execute("""
@@ -62,20 +54,19 @@ def validar_login(u, s):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("SELECT senha, nivel FROM usuarios WHERE usuario=%s", (u,))
-        res = c.fetchone()
-
-        if not res:
-            return None
-
-        senha_hash, nivel = res
-
-        try:
-            if pbkdf2_sha256.verify(s, senha_hash):
-                return nivel
-        except:
-            return None
-
+        r = c.fetchone()
+        if r and pbkdf2_sha256.verify(s, r[0]):
+            return r[1]
     return None
+
+def redefinir_senha(usuario, nova):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute(
+            "UPDATE usuarios SET senha=%s WHERE usuario=%s",
+            (pbkdf2_sha256.hash(nova), usuario)
+        )
+    conn.commit()
 
 # USUÁRIOS
 def listar_usuarios():
@@ -85,37 +76,31 @@ def listar_usuarios():
 def adicionar_usuario(u, s, n):
     conn = conectar()
     try:
-        senha = pbkdf2_sha256.hash(s)
         with conn.cursor() as c:
             c.execute(
-                "INSERT INTO usuarios (usuario, senha, nivel) VALUES (%s,%s,%s)",
-                (u, senha, n)
+                "INSERT INTO usuarios VALUES (%s,%s,%s,0,0)",
+                (u, pbkdf2_sha256.hash(s), n)
             )
         conn.commit()
         return True
     except:
         return False
 
-def alterar_senha(usuario, nova_senha):
-    conn = conectar()
-    senha_hash = pbkdf2_sha256.hash(nova_senha)
-    with conn.cursor() as c:
-        c.execute("UPDATE usuarios SET senha=%s WHERE usuario=%s", (senha_hash, usuario))
-    conn.commit()
+def alterar_senha(u, s):
+    redefinir_senha(u, s)
 
-def alterar_nivel(usuario, nivel):
+def alterar_nivel(u, n):
     conn = conectar()
     with conn.cursor() as c:
-        c.execute("UPDATE usuarios SET nivel=%s WHERE usuario=%s", (nivel, usuario))
+        c.execute("UPDATE usuarios SET nivel=%s WHERE usuario=%s", (n, u))
     conn.commit()
 
-# SALÁRIO (USUÁRIO)
+# SALÁRIO / META
 def buscar_salario(u):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
-        r = c.fetchone()
-        return r[0] if r else 0
+        return c.fetchone()[0]
 
 def atualizar_salario(u, v):
     conn = conectar()
@@ -123,13 +108,11 @@ def atualizar_salario(u, v):
         c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
     conn.commit()
 
-# META
 def buscar_meta(u):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("SELECT meta FROM usuarios WHERE usuario=%s", (u,))
-        r = c.fetchone()
-        return r[0] if r else 0
+        return c.fetchone()[0]
 
 def atualizar_meta(u, v):
     conn = conectar()
@@ -141,22 +124,18 @@ def atualizar_meta(u, v):
 def salvar_gasto(u, d, cat, desc, v, status):
     conn = conectar()
     with conn.cursor() as c:
-        c.execute("""
-        INSERT INTO gastos (usuario,data,categoria,descricao,valor,status)
-        VALUES (%s,%s,%s,%s,%s,%s)
-        """, (u, d, cat, desc, v, status))
+        c.execute(
+            "INSERT INTO gastos (usuario,data,categoria,descricao,valor,status) VALUES (%s,%s,%s,%s,%s,%s)",
+            (u, d, cat, desc, v, status)
+        )
     conn.commit()
 
 def buscar_gastos(u):
     conn = conectar()
-    return pd.read_sql(
-        "SELECT * FROM gastos WHERE usuario=%s ORDER BY data DESC",
-        conn,
-        params=(u,)
-    )
+    return pd.read_sql("SELECT * FROM gastos WHERE usuario=%s ORDER BY data DESC", conn, params=(u,))
 
-def deletar_gasto(id):
+def deletar_gasto(i):
     conn = conectar()
     with conn.cursor() as c:
-        c.execute("DELETE FROM gastos WHERE id=%s", (id,))
+        c.execute("DELETE FROM gastos WHERE id=%s", (i,))
     conn.commit()
