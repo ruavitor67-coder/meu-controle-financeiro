@@ -15,14 +15,15 @@ def criar_tabelas():
                   categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')''')
     c.execute('''CREATE TABLE IF NOT EXISTS metas 
                  (usuario TEXT, categoria TEXT, limite REAL, PRIMARY KEY(usuario, categoria))''')
+    
+    # Atualizações de colunas para evitar erros de leitura
     try:
         c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
     except: pass
     try:
         c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
     except: pass
-    
-    # Criar admin padrão
+
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
@@ -37,13 +38,6 @@ def validar_login(usuario, senha):
     conn.close()
     return res[0] if res else None
 
-def atualizar_salario(usuario, valor):
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("UPDATE usuarios SET salario=? WHERE usuario=?", (valor, usuario))
-    conn.commit()
-    conn.close()
-
 def buscar_salario(usuario):
     conn = conectar()
     c = conn.cursor()
@@ -51,6 +45,13 @@ def buscar_salario(usuario):
     res = c.fetchone()
     conn.close()
     return res[0] if res else 0
+
+def atualizar_salario(usuario, valor):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("UPDATE usuarios SET salario=? WHERE usuario=?", (valor, usuario))
+    conn.commit()
+    conn.close()
 
 def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
     conn = conectar()
@@ -63,19 +64,13 @@ def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
 def buscar_gastos(usuario):
     conn = conectar()
     try:
-        # Correção do DatabaseError: Apenas SELECT aqui
+        # SELECT limpo para evitar o erro de DatabaseError das imagens
         df = pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=?", conn, params=(usuario,))
     except:
         df = pd.DataFrame(columns=['id', 'data', 'categoria', 'descricao', 'valor', 'status'])
-    conn.close()
+    finally:
+        conn.close()
     return df
-
-def atualizar_status_gasto(id_gasto, novo_status):
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("UPDATE gastos SET status=? WHERE id=?", (novo_status, id_gasto))
-    conn.commit()
-    conn.close()
 
 def listar_usuarios():
     conn = conectar()
@@ -101,11 +96,15 @@ def alterar_nivel_usuario(nome, nivel):
     return True
 
 def deletar_usuario(nome):
-    if nome.lower().strip() == 'vitim': return False
+    nome_alvo = nome.lower().strip()
+    if nome_alvo == 'vitim': return False # Proteção contra auto-exclusão
+    
     conn = conectar()
-    c = conn.cursor()
     try:
+        c = conn.cursor()
+        # Remove dependências para não travar
         c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
+        c.execute("DELETE FROM metas WHERE usuario=?", (nome,))
         c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
         conn.commit()
         return True
