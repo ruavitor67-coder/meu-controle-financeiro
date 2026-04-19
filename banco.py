@@ -1,6 +1,6 @@
 import sqlite3
 import hashlib
-import pandas as pd  # <--- ESSA LINHA É A QUE ESTÁ FALTANDO!
+import pandas as pd  # <--- CORREÇÃO: Importação adicionada aqui
 
 def conectar():
     return sqlite3.connect('dados_app.db', check_same_thread=False)
@@ -8,57 +8,57 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
-    # Tabela de Usuários
+    # Tabela de usuários
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                 (usuario TEXT PRIMARY KEY, senha TEXT, cargo TEXT)''')
-    # Tabela de Gastos
+                 (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
+    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Criar um Admin padrão se não existir (Senha: admin123)
-    senha_hash = hashlib.sha256("admin123".encode()).hexdigest()
-    c.execute("INSERT OR IGNORE INTO usuarios VALUES (?, ?, ?)", ("admin", senha_hash, "admin"))
+    # Criar admin padrão se não existir
+    senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
+    c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
     
     conn.commit()
     conn.close()
 
-def adicionar_usuario(user, pw, cargo):
+def validar_login(usuario, senha):
     conn = conectar()
     c = conn.cursor()
-    senha_hash = hashlib.sha256(pw.encode()).hexdigest()
-    try:
-        c.execute("INSERT INTO usuarios VALUES (?, ?, ?)", (user, senha_hash, cargo))
-        conn.commit()
-        return True
-    except:
-        return False
-    finally:
-        conn.close()
-
-def validar_login(user, pw):
-    conn = conectar()
-    c = conn.cursor()
-    senha_hash = hashlib.sha256(pw.encode()).hexdigest()
-    c.execute("SELECT cargo FROM usuarios WHERE usuario = ? AND senha = ?", (user, senha_hash))
+    senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+    c.execute("SELECT nivel FROM usuarios WHERE usuario=? AND senha=?", (usuario, senha_hash))
     resultado = c.fetchone()
     conn.close()
     return resultado[0] if resultado else None
 
-def salvar_gasto(user, data, cat, desc, val):
+def adicionar_usuario(usuario, senha, nivel):
+    try:
+        conn = conectar()
+        c = conn.cursor()
+        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+        c.execute("INSERT INTO usuarios VALUES (?, ?, ?)", (usuario, senha_hash, nivel))
+        conn.commit()
+        conn.close()
+        return True
+    except:
+        return False
+
+def salvar_gasto(usuario, data, categoria, descricao, valor):
     conn = conectar()
     c = conn.cursor()
-    c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor) VALUES (?,?,?,?,?)",
-              (user, str(data), cat, desc, val))
+    c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor) VALUES (?, ?, ?, ?, ?)",
+              (usuario, str(data), categoria, descricao, valor))
     conn.commit()
     conn.close()
 
-def buscar_gastos(user, cargo):
+def buscar_gastos(usuario, nivel):
     conn = conectar()
-    # Se for admin, vê tudo. Se for user, vê só o dele.
-    if cargo == 'admin':
-        df = pd.read_sql_query("SELECT * FROM gastos", conn)
+    if nivel == 'admin':
+        query = "SELECT data, categoria, descricao, valor, usuario FROM gastos"
+        df = pd.read_sql(query, conn) # Aqui o 'pd' agora vai funcionar!
     else:
-        df = pd.read_sql_query(f"SELECT * FROM gastos WHERE usuario = '{user}'", conn)
+        query = "SELECT data, categoria, descricao, valor FROM gastos WHERE usuario=?"
+        df = pd.read_sql(query, conn, params=(usuario,))
     conn.close()
     return df
