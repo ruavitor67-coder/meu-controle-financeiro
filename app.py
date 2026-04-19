@@ -1,5 +1,4 @@
 import streamlit as st
-import pandas as pd
 import plotly.express as px
 from datetime import date
 
@@ -39,9 +38,9 @@ else:
 
     st.sidebar.metric("Salário", f"R$ {salario:.2f}")
 
-    with st.sidebar.expander("🎯 Meta Financeira"):
+    with st.sidebar.expander("Meta"):
         nova_meta = st.number_input("Meta mensal", value=float(meta))
-        if st.button("Salvar Meta"):
+        if st.button("Salvar"):
             banco.atualizar_meta(st.session_state.user, nova_meta)
             st.rerun()
 
@@ -72,14 +71,6 @@ else:
             if meta > 0:
                 progresso = total / meta
                 st.progress(min(progresso, 1.0))
-                st.write(f"{total:.2f} / {meta:.2f}")
-
-                if total > meta:
-                    st.error("🚨 Ultrapassou a meta")
-                elif total > meta * 0.8:
-                    st.warning("⚠️ 80% da meta usada")
-                else:
-                    st.success("✅ Dentro da meta")
 
             fig = px.pie(df, values='valor', names='categoria')
             st.plotly_chart(fig, use_container_width=True)
