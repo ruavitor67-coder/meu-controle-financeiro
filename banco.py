@@ -20,18 +20,9 @@ def criar_tabelas():
         try: c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
         except: pass
         
-        # Cria admin padrão se não existir
         senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
         c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
         conn.commit()
-
-def validar_login(usuario, senha):
-    with conectar() as conn:
-        c = conn.cursor()
-        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
-        c.execute("SELECT nivel FROM usuarios WHERE usuario=? AND senha=?", (usuario, senha_hash))
-        res = c.fetchone()
-        return res[0] if res else None
 
 def adicionar_usuario(nome, senha, nivel):
     try:
@@ -43,6 +34,14 @@ def adicionar_usuario(nome, senha, nivel):
             return True
     except:
         return False
+
+def validar_login(usuario, senha):
+    with conectar() as conn:
+        c = conn.cursor()
+        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
+        c.execute("SELECT nivel FROM usuarios WHERE usuario=? AND senha=?", (usuario, senha_hash))
+        res = c.fetchone()
+        return res[0] if res else None
 
 def buscar_salario(usuario):
     with conectar() as conn:
