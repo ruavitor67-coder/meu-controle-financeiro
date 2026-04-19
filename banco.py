@@ -80,7 +80,7 @@ def validar_login(u, s):
 # USUÁRIOS
 def listar_usuarios():
     conn = conectar()
-    return pd.read_sql("SELECT usuario, nivel, salario, meta FROM usuarios", conn)
+    return pd.read_sql("SELECT usuario, nivel FROM usuarios", conn)
 
 def adicionar_usuario(u, s, n):
     conn = conectar()
@@ -96,13 +96,6 @@ def adicionar_usuario(u, s, n):
     except:
         return False
 
-# ADMIN FUNÇÕES
-def atualizar_salario_admin(usuario, valor):
-    conn = conectar()
-    with conn.cursor() as c:
-        c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (valor, usuario))
-    conn.commit()
-
 def alterar_senha(usuario, nova_senha):
     conn = conectar()
     senha_hash = pbkdf2_sha256.hash(nova_senha)
@@ -114,6 +107,20 @@ def alterar_nivel(usuario, nivel):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("UPDATE usuarios SET nivel=%s WHERE usuario=%s", (nivel, usuario))
+    conn.commit()
+
+# SALÁRIO (USUÁRIO)
+def buscar_salario(u):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
+        r = c.fetchone()
+        return r[0] if r else 0
+
+def atualizar_salario(u, v):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
     conn.commit()
 
 # META
@@ -129,14 +136,6 @@ def atualizar_meta(u, v):
     with conn.cursor() as c:
         c.execute("UPDATE usuarios SET meta=%s WHERE usuario=%s", (v, u))
     conn.commit()
-
-# SALÁRIO
-def buscar_salario(u):
-    conn = conectar()
-    with conn.cursor() as c:
-        c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
-        r = c.fetchone()
-        return r[0] if r else 0
 
 # GASTOS
 def salvar_gasto(u, d, cat, desc, v, status):
