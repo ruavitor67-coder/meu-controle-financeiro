@@ -26,8 +26,6 @@ def criar_tabelas():
     conn.commit()
     conn.close()
 
-# --- NOVAS FUNÇÕES PARA SALÁRIO ---
-
 def atualizar_salario(usuario, valor):
     conn = conectar()
     c = conn.cursor()
@@ -42,8 +40,6 @@ def buscar_salario(usuario):
     res = c.fetchone()
     conn.close()
     return res[0] if res else 0
-
-# --- RESTANTE DAS FUNÇÕES (MANTIDAS) ---
 
 def validar_login(usuario, senha):
     conn = conectar()
@@ -107,7 +103,7 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
     conn.commit()
     conn.close()
 
-def buscar_gastos(usuario, nivel):
+def buscar_gastos(usuario, nivel=None):
     conn = conectar()
     query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
     df = pd.read_sql(query, conn, params=(usuario,))
