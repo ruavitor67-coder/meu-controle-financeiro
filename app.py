@@ -3,7 +3,6 @@ import pandas as pd
 import plotly.express as px
 import banco 
 
-# Configuração Base
 st.set_page_config(page_title="Gestão Financeira Pro", page_icon="💰", layout="wide")
 banco.criar_tabelas()
 
@@ -12,7 +11,6 @@ if 'logado' not in st.session_state:
     st.session_state.user = ""
     st.session_state.role = ""
 
-# --- LOGIN ---
 if not st.session_state.logado:
     st.title("🔐 Acesso Restrito")
     u = st.text_input("Usuário")
@@ -78,36 +76,44 @@ elif escolha == "👥 Gerenciar Usuários":
     st.dataframe(df_u, use_container_width=True)
 
     st.divider()
-    col_a, col_b = st.columns(2)
+    # TRÊS COLUNAS: Senha, Nível e Exclusão
+    col_a, col_b, col_c = st.columns(3)
     
     with col_a:
-        st.subheader("🔑 Resetar Senha")
-        u_senha = st.selectbox("Selecione o usuário:", df_u['usuario'].tolist(), key="u_s")
+        st.subheader("🔑 Senha")
+        u_senha = st.selectbox("Usuário:", df_u['usuario'].tolist(), key="u_s")
         n_senha = st.text_input("Nova Senha", type="password")
         if st.button("Mudar Senha"):
             if n_senha:
                 banco.alterar_senha_usuario(u_senha, n_senha)
-                st.success(f"Senha de {u_senha} atualizada!")
+                st.success("Senha atualizada!")
 
     with col_b:
-        st.subheader("🗑️ Remover Usuário")
-        # Esconde o 'vitim' da lista de exclusão para evitar erros
+        st.subheader("🛡️ Cargo")
+        u_nivel = st.selectbox("Usuário:", df_u['usuario'].tolist(), key="u_n")
+        n_nivel = st.radio("Novo Nível:", ["user", "admin"], key="rad_n")
+        if st.button("Alterar Nível"):
+            if u_nivel.lower() == 'vitim':
+                st.error("O mestre não pode ser rebaixado.")
+            else:
+                banco.alterar_nivel_usuario(u_nivel, n_nivel)
+                st.success(f"{u_nivel} agora é {n_nivel}!")
+                st.rerun()
+
+    with col_c:
+        st.subheader("🗑️ Remover")
         opcoes_del = [u for u in df_u['usuario'].tolist() if u.lower().strip() != 'vitim']
-        
         if opcoes_del:
-            u_del = st.selectbox("Selecione para excluir:", opcoes_del, key="u_d")
-            if st.button("Excluir Usuário Selecionado", type="primary"):
+            u_del = st.selectbox("Usuário:", opcoes_del, key="u_d")
+            if st.button("Excluir", type="primary"):
                 if u_del == st.session_state.user:
-                    st.error("Você não pode excluir a si mesmo enquanto estiver logado!")
+                    st.error("Saia para se excluir.")
                 else:
-                    if banco.deletar_usuario(u_del):
-                        st.success(f"Usuário {u_del} removido com sucesso!")
-                        st.balloons()
-                        st.rerun()
-                    else:
-                        st.error("Erro ao excluir usuário.")
+                    banco.deletar_usuario(u_del)
+                    st.balloons()
+                    st.rerun()
         else:
-            st.info("Apenas o usuário mestre (vitim) está cadastrado.")
+            st.info("Apenas você no sistema.")
 
 else: # DASHBOARD
     st.header("📊 Resumo Financeiro")
@@ -132,7 +138,7 @@ else: # DASHBOARD
                 num_mes = [k for k, v in meses_nomes.items() if v == mes_sel][0]
                 df_filtrado = df_filtrado[df_filtrado['data'].dt.month == num_mes]
         else:
-            col_f2.info("Selecione o ano para filtrar.")
+            col_f2.info("Selecione o ano.")
 
         c1, c2 = st.columns(2)
         c1.metric("Gasto Total", f"R$ {df_filtrado['valor'].sum():.2f}")
