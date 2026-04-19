@@ -8,13 +8,18 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
+    # Tabela de usuários
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
+    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
+    
+    # Usuário mestre padrão
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
+    
     conn.commit()
     conn.close()
 
@@ -39,6 +44,30 @@ def adicionar_usuario(usuario, senha, nivel):
     except:
         return False
 
+def listar_usuarios():
+    conn = conectar()
+    df = pd.read_sql("SELECT usuario, nivel FROM usuarios", conn)
+    conn.close()
+    return df
+
+def deletar_usuario(nome_usuario):
+    if nome_usuario == 'admin': return False
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM usuarios WHERE usuario=?", (nome_usuario,))
+    c.execute("DELETE FROM gastos WHERE usuario=?", (nome_usuario,))
+    conn.commit()
+    conn.close()
+    return True
+
+def alterar_senha_usuario(nome_usuario, nova_senha):
+    conn = conectar()
+    c = conn.cursor()
+    nova_senha_hash = hashlib.sha256(nova_senha.encode()).hexdigest()
+    c.execute("UPDATE usuarios SET senha=? WHERE usuario=?", (nova_senha_hash, nome_usuario))
+    conn.commit()
+    conn.close()
+
 def salvar_gasto(usuario, data, categoria, descricao, valor):
     conn = conectar()
     c = conn.cursor()
@@ -49,7 +78,6 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
 
 def buscar_gastos(usuario, nivel):
     conn = conectar()
-    # Importante: O 'id' deve ser o primeiro item da busca
     query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
     df = pd.read_sql(query, conn, params=(usuario,))
     conn.close()
