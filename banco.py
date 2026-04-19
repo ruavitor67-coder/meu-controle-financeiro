@@ -8,15 +8,42 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
+    # Adicionamos a coluna salario (REAL) se ela não existir
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                 (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
+                 (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
+    
+    # Garante que a coluna salario existe em bancos já criados
+    try:
+        c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
+    except:
+        pass
+
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
-    c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
+    c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
     conn.close()
+
+# --- NOVAS FUNÇÕES PARA SALÁRIO ---
+
+def atualizar_salario(usuario, valor):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("UPDATE usuarios SET salario=? WHERE usuario=?", (valor, usuario))
+    conn.commit()
+    conn.close()
+
+def buscar_salario(usuario):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("SELECT salario FROM usuarios WHERE usuario=?", (usuario,))
+    res = c.fetchone()
+    conn.close()
+    return res[0] if res else 0
+
+# --- RESTANTE DAS FUNÇÕES (MANTIDAS) ---
 
 def validar_login(usuario, senha):
     conn = conectar()
@@ -32,7 +59,7 @@ def adicionar_usuario(usuario, senha, nivel):
         conn = conectar()
         c = conn.cursor()
         senha_hash = hashlib.sha256(senha.encode()).hexdigest()
-        c.execute("INSERT INTO usuarios VALUES (?, ?, ?)", (usuario, senha_hash, nivel))
+        c.execute("INSERT INTO usuarios (usuario, senha, nivel) VALUES (?, ?, ?)", (usuario, senha_hash, nivel))
         conn.commit()
         conn.close()
         return True
@@ -41,23 +68,19 @@ def adicionar_usuario(usuario, senha, nivel):
 
 def listar_usuarios():
     conn = conectar()
-    df = pd.read_sql("SELECT usuario, nivel FROM usuarios", conn)
+    df = pd.read_sql("SELECT usuario, nivel, salario FROM usuarios", conn)
     conn.close()
     return df
 
 def deletar_usuario(nome_usuario):
-    if nome_usuario.lower().strip() == 'vitim': 
-        return False
-    try:
-        conn = conectar()
-        c = conn.cursor()
-        c.execute("DELETE FROM gastos WHERE usuario=?", (nome_usuario,))
-        c.execute("DELETE FROM usuarios WHERE usuario=?", (nome_usuario,))
-        conn.commit()
-        conn.close()
-        return True
-    except:
-        return False
+    if nome_usuario.lower().strip() == 'vitim': return False
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM gastos WHERE usuario=?", (nome_usuario,))
+    c.execute("DELETE FROM usuarios WHERE usuario=?", (nome_usuario,))
+    conn.commit()
+    conn.close()
+    return True
 
 def alterar_senha_usuario(nome_usuario, nova_senha):
     conn = conectar()
@@ -67,10 +90,8 @@ def alterar_senha_usuario(nome_usuario, nova_senha):
     conn.commit()
     conn.close()
 
-# NOVA FUNÇÃO: ALTERAR NÍVEL
 def alterar_nivel_usuario(nome_usuario, novo_nivel):
-    if nome_usuario.lower().strip() == 'vitim':
-        return False # O vitim sempre será admin
+    if nome_usuario.lower().strip() == 'vitim': return False
     conn = conectar()
     c = conn.cursor()
     c.execute("UPDATE usuarios SET nivel=? WHERE usuario=?", (novo_nivel, nome_usuario))
