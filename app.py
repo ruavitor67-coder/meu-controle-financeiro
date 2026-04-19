@@ -37,15 +37,31 @@ if not st.session_state.logado:
     st.markdown("---")
     st.subheader("🔑 Recuperar senha")
 
-    u2 = st.text_input("Usuário", key="reset_user")
-    s2 = st.text_input("Nova senha", type="password", key="reset_pass")
+    user_reset = st.text_input("Usuário para recuperação", key="reset_user")
 
-    if st.button("Redefinir senha", key="btn_reset"):
-        if u2 and s2:
-            banco.redefinir_senha(u2, s2)
-            st.success("Senha redefinida")
+    if st.button("Enviar código", key="btn_codigo"):
+        email = banco.buscar_email(user_reset)
+
+        if email:
+            codigo = banco.gerar_codigo()
+            banco.salvar_codigo(user_reset, codigo)
+            banco.enviar_email(email, codigo)
+
+            st.session_state.reset_user = user_reset
+            st.success("Código enviado para o e-mail")
         else:
-            st.warning("Preencha os campos")
+            st.error("Usuário não encontrado")
+
+    if "reset_user" in st.session_state:
+        codigo = st.text_input("Código recebido", key="codigo_input")
+        nova = st.text_input("Nova senha", type="password", key="nova_senha")
+
+        if st.button("Confirmar troca", key="btn_confirmar"):
+            if banco.validar_codigo(st.session_state.reset_user, codigo):
+                banco.redefinir_senha(st.session_state.reset_user, nova)
+                st.success("Senha alterada com sucesso")
+            else:
+                st.error("Código inválido ou expirado")
 
 # ================= SISTEMA =================
 else:
@@ -67,7 +83,7 @@ else:
                 value=float(salario),
                 key="salario_input"
             )
-            if st.button("Salvar Salário", key="btn_salvar_salario"):
+            if st.button("Salvar Salário", key="btn_salario"):
                 banco.atualizar_salario(user, novo_salario)
                 st.rerun()
 
@@ -78,7 +94,7 @@ else:
                 value=float(meta),
                 key="meta_input"
             )
-            if st.button("Salvar Meta", key="btn_salvar_meta"):
+            if st.button("Salvar Meta", key="btn_meta"):
                 banco.atualizar_meta(user, nova_meta)
                 st.rerun()
 
@@ -96,7 +112,7 @@ else:
 
         # ===== CONFIG =====
         with st.sidebar.expander("⚙️ Configurações"):
-            if st.button("Abrir Configurações", key="btn_config"):
+            if st.button("Abrir Config", key="btn_config"):
                 st.session_state.pagina = "config"
                 st.rerun()
 
@@ -145,16 +161,14 @@ else:
 
         with st.form("form_gasto"):
             d = st.date_input("Data", date.today(), key="data_gasto")
-            cat = st.selectbox(
-                "Categoria",
-                ["Alimentação","Transporte","Moradia","Lazer"],
-                key="cat_gasto"
-            )
+            cat = st.selectbox("Categoria",
+                               ["Alimentação","Transporte","Moradia","Lazer"],
+                               key="cat_gasto")
             desc = st.text_input("Descrição", key="desc_gasto")
             val = st.number_input("Valor", min_value=0.0, key="valor_gasto")
             status = st.selectbox("Status", ["Pago","Pendente"], key="status_gasto")
 
-            if st.form_submit_button("Salvar", use_container_width=True):
+            if st.form_submit_button("Salvar"):
                 banco.salvar_gasto(user, d, cat, desc, val, status)
                 st.success("Gasto salvo")
                 st.rerun()
@@ -166,10 +180,7 @@ else:
         if not df.empty:
             for _, r in df.iterrows():
                 c1, c2 = st.columns([6,1])
-
-                c1.write(
-                    f"{r['data']} | {r['descricao']} | R$ {r['valor']:.2f}"
-                )
+                c1.write(f"{r['data']} | {r['descricao']} | R$ {r['valor']:.2f}")
 
                 if c2.button("🗑️", key=f"del_{r['id']}"):
                     banco.deletar_gasto(r['id'])
@@ -183,18 +194,18 @@ else:
 
         df_users = banco.listar_usuarios()
 
-        st.subheader("Usuários")
         st.dataframe(df_users)
 
         st.subheader("Criar usuário")
 
         with st.form("form_user"):
             nu = st.text_input("Usuário", key="novo_user")
+            email = st.text_input("Email", key="novo_email")
             ns = st.text_input("Senha", type="password", key="novo_pass")
             nn = st.selectbox("Perfil", ["user","admin"], key="novo_nivel")
 
             if st.form_submit_button("Criar"):
-                banco.adicionar_usuario(nu, ns, nn)
+                banco.adicionar_usuario(nu, email, ns, nn)
                 st.success("Usuário criado")
                 st.rerun()
 
@@ -211,7 +222,7 @@ else:
 
                 if st.button("Alterar senha", key=f"btn_senha_{r['usuario']}"):
                     if nova_senha:
-                        banco.alterar_senha(r['usuario'], nova_senha)
+                        banco.redefinir_senha(r['usuario'], nova_senha)
                         st.success("Senha atualizada")
 
                 novo_nivel = st.selectbox(
