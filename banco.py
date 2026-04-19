@@ -1,8 +1,9 @@
 import psycopg2
 import pandas as pd
 import streamlit as st
-import bcrypt
+from passlib.hash import bcrypt
 
+# CONEXÃO (CACHE)
 @st.cache_resource
 def conectar():
     return psycopg2.connect(
@@ -13,13 +14,14 @@ def conectar():
         port=st.secrets["postgres"]["port"]
     )
 
+# CRIAR TABELAS
 def criar_tabelas():
     conn = conectar()
     with conn.cursor() as c:
         c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             usuario TEXT PRIMARY KEY,
-            senha BYTEA,
+            senha TEXT,
             nivel TEXT,
             salario REAL DEFAULT 0,
             meta REAL DEFAULT 0
@@ -38,7 +40,8 @@ def criar_tabelas():
         )
         """)
 
-        senha = bcrypt.hashpw("admin123".encode(), bcrypt.gensalt())
+        # Admin padrão
+        senha = bcrypt.hash("admin123")
         c.execute("""
         INSERT INTO usuarios (usuario, senha, nivel)
         VALUES ('admin', %s, 'admin')
@@ -53,9 +56,10 @@ def validar_login(u, s):
     with conn.cursor() as c:
         c.execute("SELECT senha, nivel FROM usuarios WHERE usuario=%s", (u,))
         res = c.fetchone()
+
         if res:
             senha_hash, nivel = res
-            if bcrypt.checkpw(s.encode(), senha_hash):
+            if bcrypt.verify(s, senha_hash):
                 return nivel
     return None
 
@@ -67,7 +71,7 @@ def listar_usuarios():
 def adicionar_usuario(u, s, n):
     conn = conectar()
     try:
-        senha = bcrypt.hashpw(s.encode(), bcrypt.gensalt())
+        senha = bcrypt.hash(s)
         with conn.cursor() as c:
             c.execute("INSERT INTO usuarios VALUES (%s,%s,%s,0,0)", (u, senha, n))
         conn.commit()
