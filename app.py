@@ -1,99 +1,128 @@
-import sqlite3
-import hashlib
+import streamlit as st
 import pandas as pd
+import plotly.express as px
+import banco 
+from io import BytesIO
 
-def conectar():
-    return sqlite3.connect('dados_app.db', check_same_thread=False)
+def f_moeda(v):
+    return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-def criar_tabelas():
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
-                     (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
-        c.execute('''CREATE TABLE IF NOT EXISTS gastos 
-                     (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
-                      categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')''')
-        c.execute('''CREATE TABLE IF NOT EXISTS metas 
-                     (usuario TEXT, categoria TEXT, limite REAL, PRIMARY KEY(usuario, categoria))''')
-        try:
-            c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
-        except: pass
-        try:
-            c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
-        except: pass
-        
-        senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
-        c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
-        conn.commit()
+st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
+banco.criar_tabelas()
 
-def validar_login(usuario, senha):
-    with conectar() as conn:
-        c = conn.cursor()
-        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
-        c.execute("SELECT nivel FROM usuarios WHERE usuario=? AND senha=?", (usuario, senha_hash))
-        res = c.fetchone()
-        return res[0] if res else None
+if 'logado' not in st.session_state:
+    st.session_state.logado, st.session_state.user, st.session_state.role = False, "", ""
+if 'editando_salario' not in st.session_state:
+    st.session_state.editando_salario = False
 
-def buscar_salario(usuario):
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute("SELECT salario FROM usuarios WHERE usuario=?", (usuario,))
-        res = c.fetchone()
-        return res[0] if res else 0
+# --- LOGIN ---
+if not st.session_state.logado:
+    st.title("🔐 Login")
+    u = st.text_input("Usuário")
+    p = st.text_input("Senha", type="password")
+    if st.button("Entrar"):
+        role = banco.validar_login(u, p)
+        if role:
+            st.session_state.logado, st.session_state.user, st.session_state.role = True, u, role
+            st.rerun()
+    st.stop()
 
-def atualizar_salario(usuario, valor):
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute("UPDATE usuarios SET salario=? WHERE usuario=?", (valor, usuario))
-        conn.commit()
+# --- SIDEBAR ---
+st.sidebar.title(f"👤 {st.session_state.user.upper()}")
+sal_atual = banco.buscar_salario(st.session_state.user)
 
-def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor, status) VALUES (?, ?, ?, ?, ?, ?)",
-                  (usuario, str(data), categoria, descricao, valor, status))
-        conn.commit()
+# Lógica de Salário: Texto fixo + Botão Alterar
+if not st.session_state.editando_salario:
+    col_v, col_b = st.sidebar.columns([1.5, 1])
+    col_v.write(f"Salário: **{f_moeda(sal_atual)}**")
+    if col_b.button("Alterar"):
+        st.session_state.editando_salario = True
+        st.rerun()
+else:
+    n_sal = st.sidebar.number_input("Novo Valor:", value=float(sal_atual))
+    if st.sidebar.button("Salvar Salário"):
+        banco.atualizar_salario(st.session_state.user, n_sal)
+        st.session_state.editando_salario = False
+        st.rerun()
 
-def buscar_gastos(usuario):
-    with conectar() as conn:
-        try:
-            return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=?", conn, params=(usuario,))
-        except:
-            return pd.DataFrame(columns=['id', 'data', 'categoria', 'descricao', 'valor', 'status'])
+st.sidebar.divider()
+menu = ["📊 Dashboard", "💸 Lançar Gasto", "📥 Importar Extrato", "🎯 Metas"]
 
-def listar_usuarios():
-    with conectar() as conn:
-        return pd.read_sql("SELECT usuario, nivel, salario FROM usuarios", conn)
+# Menu restrito para Vitim ou Admins
+if st.session_state.user.lower() == 'vitim' or st.session_state.role == 'admin':
+    menu.append("👥 Usuários")
 
-def alterar_senha_usuario(nome, nova_senha):
-    with conectar() as conn:
-        c = conn.cursor()
-        h = hashlib.sha256(nova_senha.encode()).hexdigest()
-        c.execute("UPDATE usuarios SET senha=? WHERE usuario=?", (h, nome))
-        conn.commit()
+escolha = st.sidebar.selectbox("Ir para:", menu)
 
-def alterar_nivel_usuario(nome, nivel):
-    if nome.lower().strip() == 'vitim': return False
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute("UPDATE usuarios SET nivel=? WHERE usuario=?", (nivel, nome))
-        conn.commit()
-        return True
+if st.sidebar.button("Sair"):
+    st.session_state.logado = False
+    st.rerun()
 
-def deletar_usuario(nome):
-    if nome.lower().strip() == 'vitim': return False
-    try:
-        with conectar() as conn:
-            c = conn.cursor()
-            c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
-            c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
-            conn.commit()
-            return True
-    except:
-        return False
+# --- TELAS ---
+if escolha == "📊 Dashboard":
+    st.header("📊 Resumo Financeiro")
+    df = banco.buscar_gastos(st.session_state.user)
+    if not df.empty:
+        df['data'] = pd.to_datetime(df['data'])
+        st.metric("Gasto Total", f_moeda(df['valor'].sum()))
+        st.dataframe(df, use_container_width=True)
+        st.plotly_chart(px.pie(df, values='valor', names='categoria', hole=0.4))
+    else:
+        st.info("Lance gastos para ver o dashboard.")
 
-def definir_meta(usuario, categoria, limite):
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO metas VALUES (?, ?, ?)", (usuario, categoria, limite))
-        conn.commit()
+elif escolha == "💸 Lançar Gasto":
+    st.header("💸 Novo Gasto")
+    with st.form("gasto"):
+        d = st.date_input("Data")
+        c = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
+        ds = st.text_input("Descrição")
+        v = st.number_input("Valor", min_value=0.0)
+        if st.form_submit_button("Salvar"):
+            banco.salvar_gasto(st.session_state.user, d, c, ds, v)
+            st.success("Salvo!")
+
+elif escolha == "👥 Usuários":
+    st.header("👥 Gestão de Usuários")
+    df_u = banco.listar_usuarios()
+    st.dataframe(df_u, use_container_width=True)
+    
+    col_a, col_b, col_c = st.columns(3)
+    u_lista = df_u['usuario'].tolist()
+    
+    with col_a:
+        st.subheader("🔑 Senha")
+        u_pw = st.selectbox("Usuário:", u_lista, key="u_pw")
+        n_pw = st.text_input("Nova Senha", type="password")
+        if st.button("Confirmar Senha"):
+            banco.alterar_senha_usuario(u_pw, n_pw)
+            st.success("Sucesso!")
+
+    with col_b:
+        st.subheader("🛡️ Nível")
+        u_rl = st.selectbox("Usuário:", u_lista, key="u_rl")
+        n_rl = st.radio("Nível:", ["user", "admin"])
+        if st.button("Confirmar Cargo"):
+            if banco.alterar_nivel_usuario(u_rl, n_rl): st.rerun()
+
+    with col_c:
+        st.subheader("🗑️ Remover")
+        # Deixamos o botão aqui caso o banco libere a exclusão depois
+        lista_del = [u for u in u_lista if u.lower().strip() != 'vitim']
+        if lista_del:
+            u_del = st.selectbox("Excluir:", lista_del)
+            if st.button("Confirmar Exclusão", type="primary"):
+                if banco.deletar_usuario(u_del): st.rerun()
+
+elif escolha == "🎯 Metas":
+    st.header("🎯 Metas")
+    cat_m = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
+    v_m = st.number_input("Limite", min_value=0.0)
+    if st.button("Salvar"):
+        banco.definir_meta(st.session_state.user, cat_m, v_m)
+        st.success("Meta definida!")
+
+elif escolha == "📥 Importar Extrato":
+    st.header("📥 Importar Dados")
+    arq = st.file_uploader("Subir arquivo", type=['csv', 'xlsx'])
+    if arq:
+        st.success("Arquivo recebido!")
