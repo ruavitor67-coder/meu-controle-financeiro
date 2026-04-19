@@ -1,23 +1,26 @@
 import streamlit as st
 import pandas as pd
-import banco  # <--- Certifique-se de que está importando 'banco' e não 'funcoes'
+import plotly.express as px
+import banco 
 
-# Iniciar o banco de dados
+# 1. Configuração da Página
+st.set_page_config(page_title="Finanças Pro v1.0", page_icon="💰", layout="wide")
+
+# 2. Inicializar Banco
 banco.criar_tabelas()
 
-st.set_page_config(page_title="Finanças Pro v1.0", layout="wide")
-
-# Gerenciamento de Sessão (Login)
+# 3. Controle de Sessão
 if 'logado' not in st.session_state:
     st.session_state.logado = False
     st.session_state.user = ""
     st.session_state.role = ""
 
+# --- LOGIN ---
 if not st.session_state.logado:
     st.title("🔐 Login - Finanças Pro")
-    u = st.text_input("Usuário")
+    u = st.text_input("Utilizador")
     p = st.text_input("Senha", type="password")
-    if st.button("Acessar Sistema"):
+    if st.button("Aceder"):
         role = banco.validar_login(u, p)
         if role:
             st.session_state.logado = True
@@ -25,18 +28,16 @@ if not st.session_state.logado:
             st.session_state.role = role
             st.rerun()
         else:
-            st.error("Dados inválidos!")
+            st.error("Incorreto!")
     st.stop()
 
-# --- ÁREA LOGADA ---
+# --- MENU ---
 st.sidebar.title(f"👤 {st.session_state.user.upper()}")
-st.sidebar.write(f"Nível: {st.session_state.role}")
-
 menu = ["📊 Dashboard", "💸 Lançar Gastos"]
 if st.session_state.role == 'admin':
-    menu.append("👥 Gerenciar Usuários")
+    menu.append("👥 Gerenciar Utilizadores")
 
-escolha = st.sidebar.selectbox("Ir para:", menu)
+escolha = st.sidebar.selectbox("Menu", menu)
 
 if st.sidebar.button("Sair"):
     st.session_state.logado = False
@@ -44,34 +45,42 @@ if st.sidebar.button("Sair"):
 
 # --- TELAS ---
 if escolha == "💸 Lançar Gastos":
-    st.header("Novo Lançamento")
-    with st.form("form_gastos", clear_on_submit=True):
-        col1, col2 = st.columns(2)
-        dt = col1.date_input("Data")
-        ct = col2.selectbox("Categoria", ["Alimentação", "Transporte", "Saúde", "Lazer", "Outros"])
-        ds = st.text_input("Descrição")
-        vl = st.number_input("Valor R$", min_value=0.0)
+    st.header("Novo Gasto")
+    with st.form("meu_form", clear_on_submit=True):
+        data = st.date_input("Data")
+        cat = st.selectbox("Categoria", ["Alimentação", "Transporte", "Lazer", "Saúde", "Fixos", "Outros"])
+        desc = st.text_input("Descrição")
+        valor = st.number_input("Valor", min_value=0.0)
         if st.form_submit_button("Salvar"):
-            banco.salvar_gasto(st.session_state.user, dt, ct, ds, vl)
-            st.success("Lançado!")
+            banco.salvar_gasto(st.session_state.user, data, cat, desc, valor)
+            st.success("Salvo!")
 
-elif escolha == "👥 Gerenciar Usuários":
-    st.header("Painel Administrativo")
-    with st.expander("Cadastrar Novo Usuário"):
-        new_u = st.text_input("Login")
-        new_p = st.text_input("Senha Provisória", type="password")
-        new_r = st.radio("Cargo", ["user", "admin"])
-        if st.button("Criar Conta"):
-            if banco.adicionar_usuario(new_u, new_p, new_r):
-                st.success("Usuário criado!")
-            else:
-                st.error("Usuário já existe!")
+elif escolha == "👥 Gerenciar Utilizadores":
+    st.header("Admin")
+    novo_u = st.text_input("Novo Usuário")
+    novo_p = st.text_input("Senha", type="password")
+    if st.button("Criar"):
+        if banco.adicionar_usuario(novo_u, novo_p, "user"):
+            st.success("Criado!")
 
-else: # Dashboard
-    st.header("Visualização de Dados")
+else: # DASHBOARD
+    st.header("📊 Resumo")
     df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
+    
     if not df.empty:
-        st.metric("Gasto Total", f"R$ {df['valor'].sum():.2f}")
-        st.dataframe(df, use_container_width=True)
+        col1, col2 = st.columns(2)
+        col1.metric("Total", f"R$ {df['valor'].sum():.2f}")
+        col2.metric("Registros", len(df))
+        
+        # Gráfico
+        df_pizza = df.groupby("categoria")["valor"].sum().reset_index()
+        fig = px.pie(df_pizza, values='valor', names='categoria', hole=0.4)
+        st.plotly_chart(fig, use_container_width=True)
+        
+        # Tabela e Download
+        with st.expander("Ver Detalhes"):
+            st.dataframe(df)
+            csv = df.to_csv(index=False).encode('utf-8')
+            st.download_button("📥 Baixar CSV", data=csv, file_name="gastos.csv", mime="text/csv")
     else:
-        st.info("Nenhum dado cadastrado.")
+        st.info("Sem dados.")
