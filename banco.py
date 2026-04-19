@@ -21,6 +21,8 @@ def criar_tabelas():
     try:
         c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
     except: pass
+    
+    # Criar admin padrão
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
@@ -35,6 +37,13 @@ def validar_login(usuario, senha):
     conn.close()
     return res[0] if res else None
 
+def atualizar_salario(usuario, valor):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("UPDATE usuarios SET salario=? WHERE usuario=?", (valor, usuario))
+    conn.commit()
+    conn.close()
+
 def buscar_salario(usuario):
     conn = conectar()
     c = conn.cursor()
@@ -42,13 +51,6 @@ def buscar_salario(usuario):
     res = c.fetchone()
     conn.close()
     return res[0] if res else 0
-
-def atualizar_salario(usuario, valor):
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("UPDATE usuarios SET salario=? WHERE usuario=?", (valor, usuario))
-    conn.commit()
-    conn.close()
 
 def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
     conn = conectar()
@@ -61,9 +63,10 @@ def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
 def buscar_gastos(usuario):
     conn = conectar()
     try:
-        df = pd.read_sql("SELECT * FROM gastos WHERE usuario=?", conn, params=(usuario,))
+        # Correção do DatabaseError: Apenas SELECT aqui
+        df = pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=?", conn, params=(usuario,))
     except:
-        df = pd.DataFrame(columns=['id', 'usuario', 'data', 'categoria', 'descricao', 'valor', 'status'])
+        df = pd.DataFrame(columns=['id', 'data', 'categoria', 'descricao', 'valor', 'status'])
     conn.close()
     return df
 
@@ -101,11 +104,15 @@ def deletar_usuario(nome):
     if nome.lower().strip() == 'vitim': return False
     conn = conectar()
     c = conn.cursor()
-    c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
-    c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
-    conn.commit()
-    conn.close()
-    return True
+    try:
+        c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
+        c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
+        conn.commit()
+        return True
+    except:
+        return False
+    finally:
+        conn.close()
 
 def definir_meta(usuario, categoria, limite):
     conn = conectar()
