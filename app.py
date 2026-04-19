@@ -77,7 +77,7 @@ else:
             c2.metric("Gasto", f"R$ {total:.2f}")
             c3.metric("Saldo", f"R$ {salario-total:.2f}")
 
-            # META + ALERTA
+            # META
             if meta > 0:
                 progresso = total / meta
                 st.subheader("📊 Progresso da Meta")
