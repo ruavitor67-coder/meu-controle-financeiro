@@ -72,30 +72,38 @@ else: # DASHBOARD
     df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
     
     if not df.empty:
+        # Métricas rápidas
         c1, c2 = st.columns(2)
         c1.metric("Total Gasto", f"R$ {df['valor'].sum():.2f}")
         c2.metric("Lançamentos", len(df))
         
         st.divider()
+        
+        # Gráfico
         df_p = df.groupby("categoria")["valor"].sum().reset_index()
         fig = px.pie(df_p, values='valor', names='categoria', hole=0.4)
         st.plotly_chart(fig, use_container_width=True)
 
-        # SEÇÃO DE EXCLUSÃO
-        with st.expander("📂 Histórico e Gerenciamento"):
-            st.write("Para excluir um gasto, selecione-o abaixo:")
-            # Criamos uma lista de texto para o usuário escolher qual deletar
-            df['info'] = df['data'] + " - " + df['categoria'] + " - R$ " + df['valor'].map(str)
-            gasto_para_deletar = st.selectbox("Selecione um gasto para remover:", df['info'])
+        st.subheader("📂 Gerenciar Histórico")
+        
+        # Criamos uma coluna formatada para o usuário identificar o gasto
+        # Usamos o índice do dataframe para garantir que não haja erro de seleção
+        df['Seleção'] = df['data'].astype(str) + " | " + df['categoria'] + " | R$ " + df['valor'].astype(str) + " (" + df['descricao'] + ")"
+        
+        # Selectbox fora de expander costuma funcionar melhor para exclusão
+        lista_gastos = df['Seleção'].tolist()
+        gasto_escolhido = st.selectbox("Escolha um gasto para remover:", lista_gastos)
+        
+        if st.button("🗑️ Confirmar Exclusão", type="primary"):
+            # Localiza o ID exato baseado na string selecionada
+            id_para_deletar = df[df['Seleção'] == gasto_escolhido]['id'].values[0]
             
-            if st.button("🗑️ Excluir Gasto Selecionado", type="primary"):
-                # Descobrimos o ID do gasto selecionado
-                id_para_deletar = df[df['info'] == gasto_para_deletar]['id'].values[0]
-                banco.deletar_gasto(id_para_deletar)
-                st.success("Gasto removido!")
-                st.rerun()
-            
-            st.divider()
-            st.dataframe(df[['data', 'categoria', 'descricao', 'valor']], use_container_width=True)
+            banco.deletar_gasto(id_para_deletar)
+            st.success("Gasto excluído com sucesso!")
+            st.rerun() # Isso força o app a recarregar sem o gasto
+
+        st.divider()
+        st.write("### Tabela Detalhada")
+        st.dataframe(df[['data', 'categoria', 'descricao', 'valor']], use_container_width=True)
     else:
-        st.info("Nenhum gasto registrado.")
+        st.info("Nenhum gasto registrado para este usuário.")
