@@ -1,11 +1,7 @@
 import psycopg2
 import pandas as pd
 import streamlit as st
-from passlib.hash import bcrypt
-
-# 🔐 TRATAMENTO DE SENHA (resolve erro 72 bytes)
-def tratar_senha(s):
-    return s[:72]
+from passlib.hash import pbkdf2_sha256
 
 # CONEXÃO
 @st.cache_resource
@@ -45,7 +41,8 @@ def criar_tabelas():
         """)
 
         # Admin padrão
-        senha = bcrypt.hash(tratar_senha("admin123"))
+        senha = pbkdf2_sha256.hash("admin123")
+
         c.execute("""
         INSERT INTO usuarios (usuario, senha, nivel)
         VALUES ('admin', %s, 'admin')
@@ -63,7 +60,7 @@ def validar_login(u, s):
 
         if res:
             senha_hash, nivel = res
-            if bcrypt.verify(tratar_senha(s), senha_hash):
+            if pbkdf2_sha256.verify(s, senha_hash):
                 return nivel
     return None
 
@@ -75,12 +72,13 @@ def listar_usuarios():
 def adicionar_usuario(u, s, n):
     conn = conectar()
     try:
-        senha = bcrypt.hash(tratar_senha(s))
+        senha = pbkdf2_sha256.hash(s)
         with conn.cursor() as c:
             c.execute("INSERT INTO usuarios VALUES (%s,%s,%s,0,0)", (u, senha, n))
         conn.commit()
         return True
-    except:
+    except Exception as e:
+        print(e)
         return False
 
 # META
