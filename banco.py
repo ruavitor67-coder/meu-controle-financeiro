@@ -7,22 +7,19 @@ def conectar():
 
 def criar_tabelas():
     conn = conectar()
-    c = conn.cursor()
-    # Tabela de usuários com suporte a salário
+    c = conn.cursor() # 🛠️ Correção: Cursor definido no início
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
-    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Adiciona a coluna salario se ela não existir (para bancos de dados antigos)
+    # Garante que a coluna salario existe em bancos já criados
     try:
         c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
     except:
         pass
 
-    # Cria usuário admin padrão se não existir
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
@@ -52,51 +49,6 @@ def validar_login(usuario, senha):
     conn.close()
     return resultado[0] if resultado else None
 
-def adicionar_usuario(usuario, senha, nivel):
-    try:
-        conn = conectar()
-        c = conn.cursor()
-        senha_hash = hashlib.sha256(senha.encode()).hexdigest()
-        c.execute("INSERT INTO usuarios (usuario, senha, nivel) VALUES (?, ?, ?)", (usuario, senha_hash, nivel))
-        conn.commit()
-        conn.close()
-        return True
-    except:
-        return False
-
-def listar_usuarios():
-    conn = conectar()
-    df = pd.read_sql("SELECT usuario, nivel, salario FROM usuarios", conn)
-    conn.close()
-    return df
-
-def deletar_usuario(nome_usuario):
-    if nome_usuario.lower().strip() == 'vitim': return False
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("DELETE FROM gastos WHERE usuario=?", (nome_usuario,))
-    c.execute("DELETE FROM usuarios WHERE usuario=?", (nome_usuario,))
-    conn.commit()
-    conn.close()
-    return True
-
-def alterar_senha_usuario(nome_usuario, nova_senha):
-    conn = conectar()
-    c = conn.cursor()
-    nova_senha_hash = hashlib.sha256(nova_senha.encode()).hexdigest()
-    c.execute("UPDATE usuarios SET senha=? WHERE usuario=?", (nova_senha_hash, nome_usuario))
-    conn.commit()
-    conn.close()
-
-def alterar_nivel_usuario(nome_usuario, novo_nivel):
-    if nome_usuario.lower().strip() == 'vitim': return False
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("UPDATE usuarios SET nivel=? WHERE usuario=?", (novo_nivel, nome_usuario))
-    conn.commit()
-    conn.close()
-    return True
-
 def salvar_gasto(usuario, data, categoria, descricao, valor):
     conn = conectar()
     c = conn.cursor()
@@ -105,7 +57,7 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
     conn.commit()
     conn.close()
 
-def buscar_gastos(usuario, nivel):
+def buscar_gastos(usuario):
     conn = conectar()
     query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
     df = pd.read_sql(query, conn, params=(usuario,))
