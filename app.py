@@ -10,14 +10,6 @@ st.set_page_config(page_title="Financeiro PRO", layout="wide")
 
 banco.criar_tabelas()
 
-# ESTILO
-st.markdown("""
-<style>
-.main {background-color:#0e1117;}
-.stMetric {background:#1c1f26;padding:15px;border-radius:10px;}
-</style>
-""", unsafe_allow_html=True)
-
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
@@ -77,54 +69,20 @@ else:
             c2.metric("Gasto", f"R$ {total:.2f}")
             c3.metric("Saldo", f"R$ {salario-total:.2f}")
 
-            # META
             if meta > 0:
                 progresso = total / meta
-                st.subheader("📊 Progresso da Meta")
                 st.progress(min(progresso, 1.0))
-                st.write(f"R$ {total:.2f} / R$ {meta:.2f}")
+                st.write(f"{total:.2f} / {meta:.2f}")
 
                 if total > meta:
-                    st.error("🚨 Você ultrapassou a meta!")
+                    st.error("🚨 Ultrapassou a meta")
                 elif total > meta * 0.8:
-                    st.warning("⚠️ Mais de 80% da meta usada")
+                    st.warning("⚠️ 80% da meta usada")
                 else:
                     st.success("✅ Dentro da meta")
 
-            # FILTRO
-            col1, col2 = st.columns(2)
-            inicio = col1.date_input("Início", date.today())
-            fim = col2.date_input("Fim", date.today())
-
-            df_filtrado = df[(df['data'] >= str(inicio)) & (df['data'] <= str(fim))]
-
-            # GRÁFICOS
-            fig = px.pie(df_filtrado, values='valor', names='categoria', hole=0.5)
+            fig = px.pie(df, values='valor', names='categoria')
             st.plotly_chart(fig, use_container_width=True)
-
-            mensal = utils.resumo_mensal(df)
-            fig2 = px.line(mensal, title="Evolução Mensal")
-            st.plotly_chart(fig2, use_container_width=True)
-
-            # DOWNLOAD
-            csv = df.to_csv(index=False).encode()
-            st.download_button("📥 Baixar CSV", csv, "relatorio.csv")
-
-            # LISTA
-            st.subheader("📋 Lançamentos")
-            for _, row in df.iterrows():
-                col1, col2, col3 = st.columns([5,1,1])
-
-                col1.info(f"{row['data']} | {row['categoria']} | {row['descricao']} | R$ {row['valor']:.2f}")
-
-                if row['status'] == "Pago":
-                    col2.success("Pago")
-                else:
-                    col2.warning("Pendente")
-
-                if col3.button("🗑️", key=row['id']):
-                    banco.deletar_gasto(row['id'])
-                    st.rerun()
 
         else:
             st.info("Sem dados")
