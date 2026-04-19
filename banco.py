@@ -2,6 +2,10 @@ import sqlite3
 import hashlib
 import pandas as pd
 
+# --- CONFIGURAÇÃO DE ACESSO MESTRE ---
+USUARIO_MESTRE = "admin"
+SENHA_INICIAL = "admin123" # Senha que será criada na primeira vez
+
 def conectar():
     return sqlite3.connect('dados_app.db', check_same_thread=False)
 
@@ -15,13 +19,23 @@ def criar_tabelas():
                       categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')''')
         c.execute('''CREATE TABLE IF NOT EXISTS metas 
                      (usuario TEXT, categoria TEXT, limite REAL, PRIMARY KEY(usuario, categoria))''')
+        
+        # Garantir colunas em bancos antigos
         try: c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
         except: pass
-        try: c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
-        except: pass
         
-        senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
-        c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
+        # --- LÓGICA DE PERSISTÊNCIA INTELIGENTE ---
+        # Verificamos se o admin já existe
+        c.execute("SELECT usuario FROM usuarios WHERE usuario = ?", (USUARIO_MESTRE,))
+        existe = c.fetchone()
+        
+        if not existe:
+            # Se não existir (primeiro boot ou após limpeza do servidor), cria com os dados iniciais
+            hash_mestre = hashlib.sha256(SENHA_INICIAL.encode()).hexdigest()
+            c.execute("INSERT INTO usuarios (usuario, senha, nivel, salario) VALUES (?, ?, 'admin', 0)", 
+                      (USUARIO_MESTRE, hash_mestre))
+        # Se já existir, NÃO FAZEMOS NADA. Assim o salário e a senha alterados pelo usuário são preservados.
+        
         conn.commit()
 
 def adicionar_usuario(nome, senha, nivel):
@@ -85,31 +99,4 @@ def alterar_nivel_usuario(nome, nivel):
     if nome.lower().strip() == 'vitim': return False
     with conectar() as conn:
         c = conn.cursor()
-        c.execute("UPDATE usuarios SET nivel=? WHERE usuario=?", (nivel, nome))
-        conn.commit()
-        return True
-
-def deletar_usuario(nome):
-    if nome.lower().strip() == 'vitim': return False
-    try:
-        with conectar() as conn:
-            c = conn.cursor()
-            c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
-            c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
-            conn.commit()
-            return True
-    except:
-        return False
-
-def definir_meta(usuario, categoria, limite):
-    with conectar() as conn:
-        c = conn.cursor()
-        c.execute("INSERT OR REPLACE INTO metas VALUES (?, ?, ?)", (usuario, categoria, limite))
-        conn.commit()
-
-def buscar_metas(usuario):
-    with conectar() as conn:
-        try:
-            return pd.read_sql("SELECT categoria, limite FROM metas WHERE usuario=?", conn, params=(usuario,))
-        except:
-            return pd.DataFrame(columns=['categoria', 'limite'])
+        c.
