@@ -8,15 +8,15 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
-    # Cria tabela de usuários
+    # Tabela de usuários
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
-    # Cria tabela de gastos
+    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Criar admin padrão caso não exista
+    # Criar admin padrão se não existir
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
     
