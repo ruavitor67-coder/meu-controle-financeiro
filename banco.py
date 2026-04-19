@@ -1,7 +1,9 @@
 import psycopg2
 import pandas as pd
 import streamlit as st
-from passlib.hash import pbkdf2_sha256
+
+from passlib.hash import pbkdf2_sha256, bcrypt
+from passlib.exc import InvalidHashError
 
 # CONEXÃO
 @st.cache_resource
@@ -40,28 +42,51 @@ def criar_tabelas():
         )
         """)
 
-        # Admin padrão
-        senha = pbkdf2_sha256.hash("admin123")
-
-        c.execute("""
-        INSERT INTO usuarios (usuario, senha, nivel)
-        VALUES ('admin', %s, 'admin')
-        ON CONFLICT DO NOTHING
-        """, (senha,))
+        # cria admin apenas se não existir
+        c.execute("SELECT 1 FROM usuarios WHERE usuario='admin'")
+        if not c.fetchone():
+            senha = pbkdf2_sha256.hash("admin123")
+            c.execute("""
+            INSERT INTO usuarios (usuario, senha, nivel)
+            VALUES ('admin', %s, 'admin')
+            """, (senha,))
 
     conn.commit()
 
-# LOGIN
+# LOGIN COM MIGRAÇÃO AUTOMÁTICA
 def validar_login(u, s):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("SELECT senha, nivel FROM usuarios WHERE usuario=%s", (u,))
         res = c.fetchone()
 
-        if res:
-            senha_hash, nivel = res
+        if not res:
+            return None
+
+        senha_hash, nivel = res
+
+        # 1️⃣ tenta pbkdf2 (novo padrão)
+        try:
             if pbkdf2_sha256.verify(s, senha_hash):
                 return nivel
+        except InvalidHashError:
+            pass
+
+        # 2️⃣ tenta bcrypt antigo
+        try:
+            if bcrypt.verify(s[:72], senha_hash):
+                # 🔄 MIGRA AUTOMATICAMENTE
+                nova_hash = pbkdf2_sha256.hash(s)
+                with conn.cursor() as c2:
+                    c2.execute(
+                        "UPDATE usuarios SET senha=%s WHERE usuario=%s",
+                        (nova_hash, u)
+                    )
+                conn.commit()
+                return nivel
+        except:
+            pass
+
     return None
 
 # USUÁRIOS
