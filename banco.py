@@ -104,12 +104,17 @@ def buscar_gastos(usuario):
     conn.close()
     return df
 
-def deletar_gasto(id_gasto):
+def buscar_gastos(usuario):
     conn = conectar()
-    c = conn.cursor()
-    c.execute("DELETE FROM gastos WHERE id=?", (id_gasto,))
-    conn.commit()
+    try:
+        # CORREÇÃO: Usamos apenas o SELECT aqui. O INSERT fica na função salvar_gasto.
+        query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
+        df = pd.read_sql(query, conn, params=(usuario,))
+    except Exception:
+        # Se a tabela estiver vazia ou com erro, retorna um DataFrame estruturado vazio
+        df = pd.DataFrame(columns=['id', 'data', 'categoria', 'descricao', 'valor'])
     conn.close()
+    return df
 
 def definir_meta(usuario, categoria, limite):
     conn = conectar()
