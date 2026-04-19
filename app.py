@@ -55,7 +55,7 @@ if escolha == "💸 Lançar Gasto":
                 banco.salvar_gasto(st.session_state.user, dt, ct, ds, vl)
                 st.success("Gasto salvo com sucesso!")
             else:
-                st.warning("Preencha todos os campos corretamente.")
+                st.warning("Preencha os campos corretamente.")
 
 elif escolha == "👥 Gerenciar Usuários":
     st.header("👥 Gestão de Contas")
@@ -75,17 +75,37 @@ else: # DASHBOARD
     df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
     
     if not df.empty:
-        # --- LÓGICA DO FILTRO DE MÊS ---
-        df['data'] = pd.to_datetime(df['data']) # Converte para formato de data real
-        df['Mes_Ano'] = df['data'].dt.strftime('%m/%Y') # Cria coluna 04/2026, 05/2026...
+        # Lógica de Data
+        df['data'] = pd.to_datetime(df['data'])
+        df['Mes_Ano'] = df['data'].dt.strftime('%m/%Y')
         
-        # Seletor de Mês no topo do Dashboard
         lista_meses = sorted(df['Mes_Ano'].unique(), reverse=True)
-        mes_selecionado = st.selectbox("📅 Filtrar por Mês/Ano:", lista_meses)
+        mes_selecionado = st.selectbox("📅 Selecione o Mês:", lista_meses)
         
-        # Filtra o dataframe com base na escolha
-        df_filtrado = df[df['Mes_Ano'] == mes_selecionado]
+        df_filtrado = df[df['Mes_Ano'] == mes_selecionado].copy()
         
-        # --- EXIBIÇÃO ---
         c1, c2 = st.columns(2)
         c1.metric(f"Total em {mes_selecionado}", f"R$ {df_filtrado['valor'].sum():.2f}")
+        c2.metric("Lançamentos", len(df_filtrado))
+        
+        st.divider()
+        
+        df_p = df_filtrado.groupby("categoria")["valor"].sum().reset_index()
+        fig = px.pie(df_p, values='valor', names='categoria', hole=0.4, title=f"Gastos de {mes_selecionado}")
+        st.plotly_chart(fig, use_container_width=True)
+
+        st.divider()
+        st.subheader("🗑️ Gerenciar Lançamentos")
+        
+        df_filtrado['item_selecao'] = "ID:" + df_filtrado['id'].astype(str) + " | " + df_filtrado['data'].dt.strftime('%d/%m/%Y') + " | " + df_filtrado['descricao']
+        
+        opcoes_excluir = df_filtrado['item_selecao'].tolist()
+        selecionado = st.selectbox("Selecione para apagar:", opcoes_excluir)
+        
+        if st.button("Confirmar Exclusão", type="primary"):
+            id_real = int(selecionado.split("|")[0].replace("ID:", "").strip())
+            banco.deletar_gasto(id_real)
+            st.success("Removido!")
+            st.rerun()
+    else:
+        st.info("Nenhum gasto registrado ainda.")
