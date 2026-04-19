@@ -1,6 +1,6 @@
 import sqlite3
 import hashlib
-import pandas as pd  # <--- CORREÇÃO: Importação adicionada aqui
+import pandas as pd
 
 def conectar():
     return sqlite3.connect('dados_app.db', check_same_thread=False)
@@ -8,15 +8,15 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
-    # Tabela de usuários
+    # Cria tabela de usuários
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
-    # Tabela de gastos
+    # Cria tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Criar admin padrão se não existir
+    # Criar admin padrão caso não exista
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
     
@@ -56,7 +56,7 @@ def buscar_gastos(usuario, nivel):
     conn = conectar()
     if nivel == 'admin':
         query = "SELECT data, categoria, descricao, valor, usuario FROM gastos"
-        df = pd.read_sql(query, conn) # Aqui o 'pd' agora vai funcionar!
+        df = pd.read_sql(query, conn)
     else:
         query = "SELECT data, categoria, descricao, valor FROM gastos WHERE usuario=?"
         df = pd.read_sql(query, conn, params=(usuario,))
