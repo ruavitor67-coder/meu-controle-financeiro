@@ -2,147 +2,125 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import banco 
+from io import BytesIO
 
-# ✨ Função para formatar números para exibição (ex: 7.000,00)
 def f_moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-st.set_page_config(page_title="Gestão Financeira", page_icon="💰", layout="wide")
+st.set_page_config(page_title="Gestão Financeira Pro", page_icon="💰", layout="wide")
 banco.criar_tabelas()
 
-# Inicialização de estados de sessão
 if 'logado' not in st.session_state:
-    st.session_state.logado = False
-    st.session_state.user = ""
-    st.session_state.role = ""
-
-if 'editando_salario' not in st.session_state:
-    st.session_state.editando_salario = False
+    st.session_state.logado, st.session_state.user, st.session_state.editando_salario = False, "", False
 
 # --- LOGIN ---
 if not st.session_state.logado:
     st.title("🔐 Login")
     u = st.text_input("Usuário")
     p = st.text_input("Senha", type="password")
-    if st.button("Entrar", use_container_width=True):
+    if st.button("Entrar"):
         role = banco.validar_login(u, p)
         if role:
-            st.session_state.logado = True
-            st.session_state.user = u
-            st.session_state.role = role
+            st.session_state.logado, st.session_state.user = True, u
             st.rerun()
-        else:
-            st.error("Usuário ou senha inválidos.")
     st.stop()
 
 # --- SIDEBAR ---
 st.sidebar.title(f"👤 {st.session_state.user.upper()}")
-
-# --- MELHORIA: Gestão Dinâmica do Salário ---
-st.sidebar.subheader("💵 Salário Mensal")
 sal_atual = banco.buscar_salario(st.session_state.user)
 
 if not st.session_state.editando_salario:
-    # Mostra o valor formatado e o botão de alterar ao lado
     col_v, col_b = st.sidebar.columns([1.5, 1])
-    col_v.write(f"**{f_moeda(sal_atual)}**")
+    col_v.write(f"Salário: **{f_moeda(sal_atual)}**")
     if col_b.button("Alterar"):
         st.session_state.editando_salario = True
         st.rerun()
 else:
-    # Mostra o campo de entrada e os botões de Salvar/Cancelar
-    n_sal = st.sidebar.number_input("Definir Valor:", min_value=0.0, value=float(sal_atual), step=100.0, format="%.2f")
-    c1, c2 = st.sidebar.columns(2)
-    if c1.button("Salvar"):
+    n_sal = st.sidebar.number_input("Valor:", value=float(sal_atual))
+    if st.sidebar.button("Salvar"):
         banco.atualizar_salario(st.session_state.user, n_sal)
-        st.session_state.editando_salario = False
-        st.sidebar.success("Salvo!")
-        st.rerun()
-    if c2.button("Cancelar"):
         st.session_state.editando_salario = False
         st.rerun()
 
 st.sidebar.divider()
-menu = ["📊 Dashboard", "💸 Lançar Gasto"]
-if st.session_state.role == 'admin':
-    menu.append("👥 Usuários")
-escolha = st.sidebar.selectbox("Ir para:", menu)
-
+menu = st.sidebar.radio("Navegação", ["📊 Dashboard", "💸 Gastos", "🎯 Metas"])
 if st.sidebar.button("Sair"):
     st.session_state.logado = False
     st.rerun()
 
-# --- TELAS ---
-
-if escolha == "💸 Lançar Gasto":
-    st.header("💸 Novo Gasto")
-    with st.form("add_gasto", clear_on_submit=True):
-        c1, c2 = st.columns(2)
-        data = c1.date_input("Data")
-        cat = c2.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
-        desc = st.text_input("Descrição")
-        # Melhoria: Campo de valor formatado com 2 casas decimais
-        valor = st.number_input("Valor (R$)", min_value=0.0, step=0.01, format="%.2f")
-        if st.form_submit_button("Salvar"):
-            if desc and valor > 0:
-                banco.salvar_gasto(st.session_state.user, data, cat, desc, valor)
-                st.success(f"Gasto de {f_moeda(valor)} registrado!")
-            else:
-                st.warning("Preencha todos os campos.")
-
-elif escolha == "👥 Usuários":
-    st.header("👥 Gestão de Usuários")
-    df_u = banco.listar_usuarios()
-    st.dataframe(df_u, use_container_width=True)
-    
-    col_a, col_b, col_c = st.columns(3)
-    with col_a:
-        u_sel = st.selectbox("Mudar Senha:", df_u['usuario'].tolist(), key="u_pw")
-        n_pw = st.text_input("Nova Senha", type="password")
-        if st.button("Confirmar Senha"):
-            banco.alterar_senha_usuario(u_sel, n_pw)
-            st.success("Senha alterada!")
-    with col_b:
-        u_cargo = st.selectbox("Mudar Cargo:", df_u['usuario'].tolist(), key="u_rl")
-        n_rl = st.radio("Nível:", ["user", "admin"])
-        if st.button("Confirmar Cargo"):
-            banco.alterar_nivel_usuario(u_cargo, n_rl)
-            st.rerun()
-    with col_c:
-        deletar_lista = [u for u in df_u['usuario'].tolist() if u.lower() != 'vitim']
-        u_del = st.selectbox("Remover:", deletar_lista, key="u_del")
-        if st.button("Confirmar Exclusão", type="primary"):
-            banco.deletar_usuario(u_del)
-            st.rerun()
-
-else: # DASHBOARD
-    st.header("📊 Resumo Financeiro")
-    # Nota: Removi o parâmetro extra caso o seu banco.py aceite apenas usuario
-    df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
-    sal = banco.buscar_salario(st.session_state.user)
+# --- DASHBOARD COM FILTROS E EXPORTAÇÃO ---
+if menu == "📊 Dashboard":
+    st.header("📊 Painel de Controle")
+    df = banco.buscar_gastos(st.session_state.user)
     
     if not df.empty:
         df['data'] = pd.to_datetime(df['data'])
-        total_gasto = df['valor'].sum()
-        saldo_restante = sal - total_gasto
+        
+        # 1. FILTROS POR PERÍODO
+        c_ano, c_mes, c_exp = st.columns([1, 1, 1])
+        anos = sorted(df['data'].dt.year.unique(), reverse=True)
+        ano_sel = c_ano.selectbox("Ano", ["Todos"] + list(anos))
+        
+        df_f = df.copy()
+        if ano_sel != "Todos":
+            df_f = df_f[df_f['data'].dt.year == ano_sel]
+            meses = {1:'Jan', 2:'Fev', 3:'Mar', 4:'Abr', 5:'Mai', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Set', 10:'Out', 11:'Nov', 12:'Dez'}
+            m_disp = sorted(df_f['data'].dt.month.unique())
+            mes_sel = c_mes.selectbox("Mês", ["Todos"] + [meses[m] for m in m_disp])
+            if mes_sel != "Todos":
+                m_num = [k for k,v in meses.items() if v == mes_sel][0]
+                df_f = df_f[df_f['data'].dt.month == m_num]
 
-        # Métricas Formatadas no padrão brasileiro
+        # 3. EXPORTAÇÃO PARA EXCEL
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            df_f.drop(columns=['usuario']).to_excel(writer, index=False, sheet_name='Gastos')
+        c_exp.markdown("<br>", unsafe_allow_html=True) # Alinhamento
+        c_exp.download_button("📥 Baixar Excel", output.getvalue(), "meus_gastos.xlsx")
+
+        # MÉTRICAS
+        total = df_f['valor'].sum()
         m1, m2, m3 = st.columns(3)
-        m1.metric("Salário Atual", f_moeda(sal))
-        m2.metric("Total Gasto", f_moeda(total_gasto), delta_color="inverse")
-        m3.metric("Saldo Restante", f_moeda(saldo_restante))
+        m1.metric("Salário", f_moeda(sal_atual))
+        m2.metric("Total Gasto", f_moeda(total), delta_color="inverse")
+        m3.metric("Saldo", f_moeda(sal_atual - total))
+
+        # 2. ALERTA DE METAS
+        st.subheader("⚠️ Status das Metas")
+        df_metas = banco.buscar_metas(st.session_state.user)
+        df_cat = df_f.groupby("categoria")["valor"].sum().reset_index()
+        
+        for index, row in df_metas.iterrows():
+            gasto_cat = df_cat[df_cat['categoria'] == row['categoria']]['valor'].sum()
+            perc = min(gasto_cat / row['limite'], 1.0) if row['limite'] > 0 else 0
+            cor = "red" if gasto_cat > row['limite'] else "green"
+            st.write(f"**{row['categoria']}**: {f_moeda(gasto_cat)} de {f_moeda(row['limite'])}")
+            st.progress(perc)
+            if gasto_cat > row['limite']:
+                st.error(f"🚨 Limite de {row['categoria']} ultrapassado!")
 
         st.divider()
-        df_p = df.groupby("categoria")["valor"].sum().reset_index()
-        fig = px.pie(df_p, values='valor', names='categoria', hole=0.4, title="Gastos por Categoria")
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.subheader("🗑️ Remover Registro")
-        # Exibe os itens da lista também com o valor formatado
-        df['item'] = df['id'].astype(str) + " | " + df['data'].dt.strftime('%d/%m/%Y') + " | " + df['descricao'] + " | " + df['valor'].apply(f_moeda)
-        it_del = st.selectbox("Selecione para excluir:", df['item'].tolist())
-        if st.button("Excluir Gasto", type="primary"):
-            banco.deletar_gasto(int(it_del.split("|")[0]))
-            st.rerun()
+        st.plotly_chart(px.pie(df_f, values='valor', names='categoria', hole=0.4), use_container_width=True)
     else:
-        st.info(f"Salário: {f_moeda(sal)}. Lance gastos para ver o resumo.")
+        st.info("Lance gastos para ativar o dashboard.")
+
+elif menu == "💸 Gastos":
+    st.header("💸 Lançar Gasto")
+    with st.form("gasto"):
+        d = st.date_input("Data")
+        c = st.selectbox("Categoria", ["Alimentação", "Transporte", "Moradia", "Lazer", "Saúde", "Outros"])
+        ds = st.text_input("Descrição")
+        v = st.number_input("Valor", min_value=0.0, format="%.2f")
+        if st.form_submit_button("Salvar"):
+            banco.salvar_gasto(st.session_state.user, d, c, ds, v)
+            st.success("Gasto salvo!")
+            st.rerun()
+
+elif menu == "🎯 Metas":
+    st.header("🎯 Definir Limites Mensais")
+    with st.form("meta"):
+        cat = st.selectbox("Categoria", ["Alimentação", "Transporte", "Moradia", "Lazer", "Saúde", "Outros"])
+        lim = st.number_input("Limite Máximo (R$)", min_value=0.0)
+        if st.form_submit_button("Definir Meta"):
+            banco.definir_meta(st.session_state.user, cat, lim)
+            st.success(f"Meta para {cat} definida!")
