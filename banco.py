@@ -97,3 +97,10 @@ def definir_meta(usuario, categoria, limite):
         c = conn.cursor()
         c.execute("INSERT OR REPLACE INTO metas VALUES (?, ?, ?)", (usuario, categoria, limite))
         conn.commit()
+
+def buscar_metas(usuario):
+    with conectar() as conn:
+        try:
+            return pd.read_sql("SELECT categoria, limite FROM metas WHERE usuario=?", conn, params=(usuario,))
+        except:
+            return pd.DataFrame(columns=['categoria', 'limite'])
