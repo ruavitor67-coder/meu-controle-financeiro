@@ -49,13 +49,12 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
 
 def buscar_gastos(usuario, nivel):
     conn = conectar()
-    # O 'id' precisa estar aqui!
+    # Importante: O 'id' deve ser o primeiro item da busca
     query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
     df = pd.read_sql(query, conn, params=(usuario,))
     conn.close()
     return df
 
-# NOVA FUNÇÃO PARA EXCLUIR
 def deletar_gasto(id_gasto):
     conn = conectar()
     c = conn.cursor()
