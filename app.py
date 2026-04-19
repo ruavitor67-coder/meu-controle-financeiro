@@ -34,11 +34,11 @@ if not st.session_state.logado:
         else:
             st.error("Login inválido")
 
-    # ================= RECUPERAR SENHA =================
+    # ================= RECUPERAÇÃO =================
     st.markdown("---")
     st.subheader("🔑 Recuperar senha")
 
-    user_reset = st.text_input("Usuário", key="reset_user")
+    user_reset = st.text_input("Usuário para recuperação", key="reset_user")
 
     if st.button("Enviar código"):
         email = banco.buscar_email(user_reset)
@@ -90,14 +90,18 @@ else:
         meta = banco.buscar_meta(user)
 
         with st.expander("💰 Salário"):
-            novo_salario = st.number_input("Valor", value=float(salario), key="salario")
-            if st.button("Salvar salário"):
+            novo_salario = st.number_input(
+                "Valor", value=float(salario), key="salario_input"
+            )
+            if st.button("Salvar salário", key="btn_salario"):
                 banco.atualizar_salario(user, novo_salario)
                 st.rerun()
 
         with st.expander("🎯 Meta"):
-            nova_meta = st.number_input("Valor", value=float(meta), key="meta")
-            if st.button("Salvar meta"):
+            nova_meta = st.number_input(
+                "Valor", value=float(meta), key="meta_input"
+            )
+            if st.button("Salvar meta", key="btn_meta"):
                 banco.atualizar_meta(user, nova_meta)
                 st.rerun()
 
@@ -143,8 +147,12 @@ else:
         # ===== FILTROS =====
         col1, col2 = st.columns(2)
 
-        data_inicio = col1.date_input("Data inicial", df['data'].min(), key="inicio")
-        data_fim = col2.date_input("Data final", df['data'].max(), key="fim")
+        data_inicio = col1.date_input(
+            "Data inicial", df['data'].min(), key="filtro_inicio"
+        )
+        data_fim = col2.date_input(
+            "Data final", df['data'].max(), key="filtro_fim"
+        )
 
         df_filtrado = df[
             (df['data'] >= pd.to_datetime(data_inicio)) &
@@ -167,37 +175,62 @@ else:
 
         # ===== GRÁFICO LINHA =====
         df_linha = df_filtrado.groupby('data')['valor'].sum().reset_index()
-
         fig1 = px.line(df_linha, x='data', y='valor', markers=True)
         st.plotly_chart(fig1, use_container_width=True)
 
         # ===== GRÁFICO CATEGORIA =====
         df_cat = df_filtrado.groupby('categoria')['valor'].sum().reset_index()
-
         fig2 = px.pie(df_cat, values='valor', names='categoria', hole=0.5)
         st.plotly_chart(fig2, use_container_width=True)
 
         # ===== TABELA =====
-        st.dataframe(df_filtrado.sort_values("data", ascending=False), use_container_width=True)
+        st.dataframe(
+            df_filtrado.sort_values("data", ascending=False),
+            use_container_width=True
+        )
 
     # ================= NOVO GASTO =================
     elif pagina == "gasto":
 
         st.title("💸 Novo Gasto")
 
+        categorias = banco.listar_categorias(user)
+
+        if not categorias:
+            categorias = ["Alimentação", "Transporte", "Moradia", "Lazer"]
+
         with st.form("form_gasto"):
+
             d = st.date_input("Data", date.today(), key="data_gasto")
-            cat = st.selectbox("Categoria",
-                               ["Alimentação","Transporte","Moradia","Lazer"],
-                               key="cat")
-            desc = st.text_input("Descrição", key="desc")
-            val = st.number_input("Valor", min_value=0.0, key="valor")
-            status = st.selectbox("Status", ["Pago","Pendente"], key="status")
+
+            cat = st.selectbox("Categoria", categorias, key="cat_gasto")
+
+            desc = st.text_input("Descrição", key="desc_gasto")
+
+            val = st.number_input("Valor", min_value=0.0, key="valor_gasto")
+
+            status = st.selectbox(
+                "Status", ["Pago", "Pendente"], key="status_gasto"
+            )
 
             if st.form_submit_button("Salvar"):
                 banco.salvar_gasto(user, d, cat, desc, val, status)
-                st.success("Salvo")
+                st.success("Gasto salvo")
                 st.rerun()
+
+        # ===== NOVA CATEGORIA =====
+        st.markdown("---")
+        st.subheader("➕ Nova Categoria")
+
+        nova_cat = st.text_input("Nome da categoria", key="nova_categoria")
+
+        if st.button("Adicionar categoria"):
+            if nova_cat.strip():
+                banco.adicionar_categoria(user, nova_cat.strip())
+                st.success("Categoria adicionada")
+                st.rerun()
+            else:
+                st.warning("Digite um nome válido")
 
     # ================= CONFIG =================
     elif pagina == "config":
@@ -207,9 +240,11 @@ else:
         if not df.empty:
             for _, r in df.iterrows():
 
-                c1, c2 = st.columns([6,1])
+                c1, c2 = st.columns([6, 1])
 
-                c1.write(f"{r['data']} | {r['descricao']} | R$ {r['valor']:.2f}")
+                c1.write(
+                    f"{r['data']} | {r['descricao']} | R$ {r['valor']:.2f}"
+                )
 
                 if c2.button("🗑️", key=f"del_{r['id']}"):
                     banco.deletar_gasto(r['id'])
@@ -231,7 +266,7 @@ else:
             nu = st.text_input("Usuário", key="novo_user")
             email = st.text_input("Email", key="novo_email")
             ns = st.text_input("Senha", type="password", key="novo_pass")
-            nn = st.selectbox("Perfil", ["user","admin"], key="novo_nivel")
+            nn = st.selectbox("Perfil", ["user", "admin"], key="novo_nivel")
 
             if st.form_submit_button("Criar"):
                 banco.adicionar_usuario(nu, email, ns, nn)
@@ -256,8 +291,8 @@ else:
 
                 novo_nivel = st.selectbox(
                     "Perfil",
-                    ["user","admin"],
-                    index=0 if r['nivel']=="user" else 1,
+                    ["user", "admin"],
+                    index=0 if r['nivel'] == "user" else 1,
                     key=f"nivel_{r['usuario']}"
                 )
 
