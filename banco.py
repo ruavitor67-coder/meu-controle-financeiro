@@ -7,10 +7,13 @@ from email.mime.text import MIMEText
 # ================= CONEXÃO =================
 def conectar():
     return psycopg2.connect(
-        host="YOUR_HOST",
-        database="YOUR_DB",
-        user="YOUR_USER",
-        password="YOUR_PASSWORD"
+        host="aws-1-us-east-2.pooler.supabase.com",
+        database="postgres",
+        user="postgres.gpmhnytpcbypqdocuxtq",
+        password="Joseantony890@@",
+        port="6543",
+        sslmode="require",
+        options='-c search_path=public'
     )
 
 # ================= CRIAR TABELAS =================
@@ -18,7 +21,6 @@ def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
 
-    # USUÁRIOS
     c.execute("""
     CREATE TABLE IF NOT EXISTS usuarios (
         id SERIAL PRIMARY KEY,
@@ -31,7 +33,6 @@ def criar_tabelas():
     )
     """)
 
-    # GASTOS
     c.execute("""
     CREATE TABLE IF NOT EXISTS gastos (
         id SERIAL PRIMARY KEY,
@@ -44,21 +45,19 @@ def criar_tabelas():
     )
     """)
 
-    # CÓDIGOS DE RECUPERAÇÃO
-    c.execute("""
-    CREATE TABLE IF NOT EXISTS codigos (
-        usuario TEXT,
-        codigo TEXT
-    )
-    """)
-
-    # CATEGORIAS
     c.execute("""
     CREATE TABLE IF NOT EXISTS categorias (
         id SERIAL PRIMARY KEY,
         usuario TEXT,
         nome TEXT,
         UNIQUE(usuario, nome)
+    )
+    """)
+
+    c.execute("""
+    CREATE TABLE IF NOT EXISTS codigos (
+        usuario TEXT,
+        codigo TEXT
     )
     """)
 
@@ -80,14 +79,12 @@ def validar_login(usuario, senha):
     c = conn.cursor()
 
     c.execute("SELECT senha, nivel FROM usuarios WHERE usuario=%s", (usuario,))
-    result = c.fetchone()
-
+    r = c.fetchone()
     conn.close()
 
-    if result:
-        senha_hash, nivel = result
-        if pbkdf2_sha256.verify(senha, senha_hash):
-            return nivel
+    if r:
+        if pbkdf2_sha256.verify(senha, r[0]):
+            return r[1]
     return None
 
 # ================= USUÁRIOS =================
@@ -97,7 +94,6 @@ def listar_usuarios():
 
     c.execute("SELECT usuario, nivel, salario, meta FROM usuarios")
     dados = c.fetchall()
-
     conn.close()
 
     import pandas as pd
@@ -117,7 +113,14 @@ def adicionar_usuario(usuario, email, senha, nivel):
 
     conn.commit()
     conn.close()
-    return True
+
+def excluir_usuario(usuario):
+    conn = conectar()
+    c = conn.cursor()
+
+    c.execute("DELETE FROM usuarios WHERE usuario=%s", (usuario,))
+    conn.commit()
+    conn.close()
 
 def redefinir_senha(usuario, nova_senha):
     conn = conectar()
@@ -148,8 +151,8 @@ def buscar_salario(usuario):
 
     c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-
     conn.close()
+
     return r[0] if r else 0
 
 def atualizar_salario(usuario, valor):
@@ -168,8 +171,8 @@ def buscar_meta(usuario):
 
     c.execute("SELECT meta FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-
     conn.close()
+
     return r[0] if r else 0
 
 def atualizar_meta(usuario, valor):
@@ -217,7 +220,6 @@ def deletar_gasto(id):
     c = conn.cursor()
 
     c.execute("DELETE FROM gastos WHERE id=%s", (id,))
-
     conn.commit()
     conn.close()
 
@@ -226,14 +228,11 @@ def listar_categorias(usuario):
     conn = conectar()
     c = conn.cursor()
 
-    try:
-        c.execute("SELECT nome FROM categorias WHERE usuario=%s", (usuario,))
-        dados = c.fetchall()
-        return [x[0] for x in dados]
-    except:
-        return []
-    finally:
-        conn.close()
+    c.execute("SELECT nome FROM categorias WHERE usuario=%s", (usuario,))
+    dados = c.fetchall()
+    conn.close()
+
+    return [x[0] for x in dados] if dados else []
 
 def adicionar_categoria(usuario, nome):
     conn = conectar()
@@ -255,8 +254,8 @@ def buscar_email(usuario):
 
     c.execute("SELECT email FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-
     conn.close()
+
     return r[0] if r else None
 
 def gerar_codigo():
@@ -278,7 +277,6 @@ def validar_codigo(usuario, codigo):
 
     c.execute("SELECT codigo FROM codigos WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-
     conn.close()
 
     return r and r[0] == codigo
@@ -292,7 +290,7 @@ def enviar_email(destino, codigo):
         msg['To'] = destino
 
         server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
-        server.login("seuemail@gmail.com", "sua_senha_app")
+        server.login("seuemail@gmail.com", "SENHA_APP")
         server.sendmail(msg['From'], [destino], msg.as_string())
         server.quit()
     except:
