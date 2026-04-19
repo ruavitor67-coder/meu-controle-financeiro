@@ -18,6 +18,8 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     with conn.cursor() as c:
+
+        # TABELA USUÁRIOS
         c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             usuario TEXT PRIMARY KEY,
@@ -28,6 +30,7 @@ def criar_tabelas():
         )
         """)
 
+        # TABELA GASTOS
         c.execute("""
         CREATE TABLE IF NOT EXISTS gastos (
             id SERIAL PRIMARY KEY,
@@ -40,14 +43,13 @@ def criar_tabelas():
         )
         """)
 
-        # Garante admin limpo
-        c.execute("DELETE FROM usuarios WHERE usuario='admin'")
-
+        # 🔥 CRIA ADMIN SEM DUPLICAR
         senha = pbkdf2_sha256.hash("admin123")
 
         c.execute("""
         INSERT INTO usuarios (usuario, senha, nivel)
         VALUES ('admin', %s, 'admin')
+        ON CONFLICT (usuario) DO NOTHING
         """, (senha,))
 
     conn.commit()
@@ -83,7 +85,10 @@ def adicionar_usuario(u, s, n):
     try:
         senha = pbkdf2_sha256.hash(s)
         with conn.cursor() as c:
-            c.execute("INSERT INTO usuarios VALUES (%s,%s,%s,0,0)", (u, senha, n))
+            c.execute(
+                "INSERT INTO usuarios VALUES (%s,%s,%s,0,0)",
+                (u, senha, n)
+            )
         conn.commit()
         return True
     except Exception as e:
