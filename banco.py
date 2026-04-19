@@ -18,7 +18,6 @@ def conectar():
         port=st.secrets["postgres"]["port"]
     )
 
-# ================= TABELAS =================
 def criar_tabelas():
     conn = conectar()
     with conn.cursor() as c:
@@ -58,7 +57,7 @@ def criar_tabelas():
 
     conn.commit()
 
-# ================= LOGIN =================
+# LOGIN
 def validar_login(u, s):
     conn = conectar()
     with conn.cursor() as c:
@@ -68,7 +67,7 @@ def validar_login(u, s):
             return r[1]
     return None
 
-# ================= USUÁRIOS =================
+# USUÁRIOS
 def adicionar_usuario(u, email, s, n):
     conn = conectar()
     try:
@@ -115,12 +114,13 @@ def deletar_usuario(usuario):
         c.execute("DELETE FROM usuarios WHERE usuario=%s", (usuario,))
     conn.commit()
 
-# ================= SALÁRIO / META =================
+# SALÁRIO / META
 def buscar_salario(u):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
-        return c.fetchone()[0]
+        r = c.fetchone()
+        return r[0] if r else 0
 
 def atualizar_salario(u, v):
     conn = conectar()
@@ -132,7 +132,8 @@ def buscar_meta(u):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("SELECT meta FROM usuarios WHERE usuario=%s", (u,))
-        return c.fetchone()[0]
+        r = c.fetchone()
+        return r[0] if r else 0
 
 def atualizar_meta(u, v):
     conn = conectar()
@@ -140,7 +141,7 @@ def atualizar_meta(u, v):
         c.execute("UPDATE usuarios SET meta=%s WHERE usuario=%s", (v, u))
     conn.commit()
 
-# ================= GASTOS =================
+# GASTOS
 def salvar_gasto(u, d, cat, desc, v, status):
     conn = conectar()
     with conn.cursor() as c:
@@ -164,7 +165,7 @@ def deletar_gasto(i):
         c.execute("DELETE FROM gastos WHERE id=%s", (i,))
     conn.commit()
 
-# ================= RECUPERAÇÃO =================
+# RECUPERAÇÃO
 def gerar_codigo():
     return ''.join(random.choices(string.digits, k=6))
 
