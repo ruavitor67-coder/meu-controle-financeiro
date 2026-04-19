@@ -49,7 +49,7 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
 
 def buscar_gastos(usuario, nivel):
     conn = conectar()
-    # Buscamos o ID também para podermos deletar depois
+    # O 'id' precisa estar aqui!
     query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
     df = pd.read_sql(query, conn, params=(usuario,))
     conn.close()
