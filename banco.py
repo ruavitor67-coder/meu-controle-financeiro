@@ -1,6 +1,6 @@
 import sqlite3
 import hashlib
-import pandas as pd  # <--- ADICIONE ESTA LINHA AQUI
+import pandas as pd  # <--- ESSA LINHA É A QUE ESTÁ FALTANDO!
 
 def conectar():
     return sqlite3.connect('dados_app.db', check_same_thread=False)
