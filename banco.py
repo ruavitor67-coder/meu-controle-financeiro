@@ -8,14 +8,13 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
-    # Adicionamos a coluna salario (REAL) se ela não existir
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Garante que a coluna salario existe em bancos já criados
+    # Tenta adicionar a coluna salario caso o banco seja antigo
     try:
         c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
     except:
@@ -25,8 +24,6 @@ def criar_tabelas():
     c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
     conn.close()
-
-# --- NOVAS FUNÇÕES PARA SALÁRIO ---
 
 def atualizar_salario(usuario, valor):
     conn = conectar()
@@ -42,8 +39,6 @@ def buscar_salario(usuario):
     res = c.fetchone()
     conn.close()
     return res[0] if res else 0
-
-# --- RESTANTE DAS FUNÇÕES (MANTIDAS) ---
 
 def validar_login(usuario, senha):
     conn = conectar()
@@ -105,18 +100,3 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
     c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor) VALUES (?, ?, ?, ?, ?)",
               (usuario, str(data), categoria, descricao, valor))
     conn.commit()
-    conn.close()
-
-def buscar_gastos(usuario, nivel):
-    conn = conectar()
-    query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
-    df = pd.read_sql(query, conn, params=(usuario,))
-    conn.close()
-    return df
-
-def deletar_gasto(id_gasto):
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("DELETE FROM gastos WHERE id=?", (id_gasto,))
-    conn.commit()
-    conn.close()
