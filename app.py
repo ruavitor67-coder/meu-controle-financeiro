@@ -75,37 +75,78 @@ else: # DASHBOARD
     df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
     
     if not df.empty:
-        # Lógica de Data
+        # --- PREPARAÇÃO DAS DATAS ---
         df['data'] = pd.to_datetime(df['data'])
-        df['Mes_Ano'] = df['data'].dt.strftime('%m/%Y')
+        df['Ano'] = df['data'].dt.year.astype(str)
+        df['Mês'] = df['data'].dt.month_name() # Nome do mês
+        df['Dia'] = df['data'].dt.strftime('%d/%m/%Y')
         
-        lista_meses = sorted(df['Mes_Ano'].unique(), reverse=True)
-        mes_selecionado = st.selectbox("📅 Selecione o Mês:", lista_meses)
+        # --- LINHA DE FILTROS ---
+        st.subheader("🔍 Filtros")
+        col_f1, col_f2, col_f3 = st.columns(3)
         
-        df_filtrado = df[df['Mes_Ano'] == mes_selecionado].copy()
+        # Filtro de Ano
+        anos = sorted(df['Ano'].unique(), reverse=True)
+        ano_sel = col_f1.selectbox("Filtrar por Ano:", ["Todos"] + anos)
         
+        # Filtro de Mês
+        if ano_sel != "Todos":
+            df_mes = df[df['Ano'] == ano_sel]
+            meses = sorted(df_mes['data'].dt.month.unique())
+            # Converte números para nomes de meses amigáveis
+            nomes_meses = {1:'Janeiro', 2:'Fevereiro', 3:'Março', 4:'Abril', 5:'Maio', 6:'Junho',
+                           7:'Julho', 8:'Agosto', 9:'Setembro', 10:'Outubro', 11:'Novembro', 12:'Dezembro'}
+            meses_nomes = [nomes_meses[m] for m in meses]
+            mes_sel = col_f2.selectbox("Filtrar por Mês:", ["Todos"] + meses_nomes)
+        else:
+            mes_sel = col_f2.selectbox("Filtrar por Mês:", ["Selecione um ano"], disabled=True)
+
+        # Filtro de Dia
+        if mes_sel != "Todos" and ano_sel != "Todos":
+            # Inverte o dicionário para pegar o número do mês de volta
+            num_mes = [k for k, v in nomes_meses.items() if v == mes_sel][0]
+            df_dia = df[(df['Ano'] == ano_sel) & (df['data'].dt.month == num_mes)]
+            dias = sorted(df_dia['Dia'].unique(), reverse=True)
+            dia_sel = col_f3.selectbox("Filtrar por Dia:", ["Todos"] + dias)
+        else:
+            dia_sel = col_f3.selectbox("Filtrar por Dia:", ["Selecione um mês"], disabled=True)
+
+        # --- APLICAÇÃO DOS FILTROS NO DATAFRAME ---
+        df_filtrado = df.copy()
+        if ano_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['Ano'] == ano_sel]
+        if mes_sel != "Todos" and ano_sel != "Todos":
+            num_mes = [k for k, v in nomes_meses.items() if v == mes_sel][0]
+            df_filtrado = df_filtrado[df_filtrado['data'].dt.month == num_mes]
+        if dia_sel != "Todos" and ano_sel != "Todos" and mes_sel != "Todos":
+            df_filtrado = df_filtrado[df_filtrado['Dia'] == dia_sel]
+
+        # --- EXIBIÇÃO ---
+        st.divider()
         c1, c2 = st.columns(2)
-        c1.metric(f"Total em {mes_selecionado}", f"R$ {df_filtrado['valor'].sum():.2f}")
+        c1.metric("Total no Período", f"R$ {df_filtrado['valor'].sum():.2f}")
         c2.metric("Lançamentos", len(df_filtrado))
         
         st.divider()
         
-        df_p = df_filtrado.groupby("categoria")["valor"].sum().reset_index()
-        fig = px.pie(df_p, values='valor', names='categoria', hole=0.4, title=f"Gastos de {mes_selecionado}")
-        st.plotly_chart(fig, use_container_width=True)
+        # Gráfico dinâmico
+        if not df_filtrado.empty:
+            df_p = df_filtrado.groupby("categoria")["valor"].sum().reset_index()
+            fig = px.pie(df_p, values='valor', names='categoria', hole=0.4, title="Divisão por Categoria")
+            st.plotly_chart(fig, use_container_width=True)
 
-        st.divider()
-        st.subheader("🗑️ Gerenciar Lançamentos")
-        
-        df_filtrado['item_selecao'] = "ID:" + df_filtrado['id'].astype(str) + " | " + df_filtrado['data'].dt.strftime('%d/%m/%Y') + " | " + df_filtrado['descricao']
-        
-        opcoes_excluir = df_filtrado['item_selecao'].tolist()
-        selecionado = st.selectbox("Selecione para apagar:", opcoes_excluir)
-        
-        if st.button("Confirmar Exclusão", type="primary"):
-            id_real = int(selecionado.split("|")[0].replace("ID:", "").strip())
-            banco.deletar_gasto(id_real)
-            st.success("Removido!")
-            st.rerun()
+            st.subheader("🗑️ Gerenciar Lançamentos")
+            df_filtrado['item_selecao'] = "ID:" + df_filtrado['id'].astype(str) + " | " + df_filtrado['Dia'] + " | " + df_filtrado['descricao']
+            opcoes_excluir = df_filtrado['item_selecao'].tolist()
+            selecionado = st.selectbox("Selecione para apagar:", opcoes_excluir)
+            
+            if st.button("Confirmar Exclusão", type="primary"):
+                id_real = int(selecionado.split("|")[0].replace("ID:", "").strip())
+                banco.deletar_gasto(id_real)
+                st.success("Removido!")
+                st.rerun()
+        else:
+            st.warning("Nenhum gasto encontrado para os filtros selecionados.")
+
     else:
         st.info("Nenhum gasto registrado ainda.")
