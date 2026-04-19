@@ -17,10 +17,10 @@ st.markdown("""
     [data-testid="stMetricValue"] { color: #10B981 !important; font-weight: 600; }
     .stButton>button {
         background-color: #1E3A8A; color: white; border-radius: 6px;
-        border: none; font-weight: 500; transition: 0.2s;
+        border: none; font-weight: 500; transition: 0.2s; width: 100%;
     }
     .stButton>button:hover { background-color: #3B82F6; color: white; }
-    .stProgress > div > div > div > div { background-image: linear-gradient(to right, #059669, #10B981); }
+    .stExpander { border: 1px solid #334155; border-radius: 6px; background-color: #1A1F26; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -55,7 +55,7 @@ if not st.session_state.editando_salario:
         st.rerun()
 else:
     n_sal = st.sidebar.number_input("Novo Valor:", value=float(sal_atual))
-    if st.sidebar.button("Salvar"):
+    if st.sidebar.button("Salvar Salário"):
         banco.atualizar_salario(st.session_state.user, n_sal)
         st.session_state.editando_salario = False
         st.rerun()
@@ -72,7 +72,7 @@ if st.sidebar.button("Sair"):
 
 # --- TELAS ---
 if escolha == "📊 Dashboard":
-    st.header("📊 Resumo de Performance")
+    st.header("📊 Resumo Financeiro")
     df = banco.buscar_gastos(st.session_state.user)
     if not df.empty:
         total = df['valor'].sum()
@@ -93,24 +93,72 @@ elif escolha == "💸 Lançamentos":
         cat = c2.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
         desc = st.text_input("Descrição")
         val = st.number_input("Valor", min_value=0.0)
-        if st.form_submit_button("REGISTRAR"):
+        if st.form_submit_button("REGISTRAR GASTO"):
             banco.salvar_gasto(st.session_state.user, d, cat, desc, val)
-            st.success("Salvo!")
+            st.success("Lançamento efetuado!")
 
 elif escolha == "👥 Administração":
     st.header("👥 Gestão de Usuários")
-    with st.expander("➕ Adicionar Novo"):
+    
+    # 1. Adicionar Novo Usuário
+    with st.expander("➕ Adicionar Novo Usuário", expanded=False):
         c1, c2, c3 = st.columns(3)
         nu = c1.text_input("Nome")
         np = c2.text_input("Senha", type="password")
         nr = c3.selectbox("Permissão", ["user", "admin"])
         if st.button("Criar Conta"):
-            if banco.adicionar_usuario(nu, np, nr): st.rerun()
-            else: st.error("Erro ao criar usuário.")
+            if nu and np:
+                if banco.adicionar_usuario(nu, np, nr): 
+                    st.success(f"Usuário {nu} criado!")
+                    st.rerun()
+                else: st.error("Erro: Usuário já existe.")
+            else: st.warning("Preencha todos os campos.")
     
+    st.divider()
+    
+    # 2. Tabela de Usuários
     df_u = banco.listar_usuarios()
+    st.subheader("📋 Usuários Cadastrados")
     st.dataframe(df_u, use_container_width=True)
     
-    u_del = st.selectbox("Remover Usuário:", [u for u in df_u['usuario'].tolist() if u != 'admin'])
-    if st.button("Excluir Permanente", type="primary"):
-        if banco.deletar_usuario(u_del): st.rerun()
+    st.divider()
+
+    # 3. Mudar Senha, Cargo e Excluir (EM COLUNAS)
+    st.subheader("⚙️ Ações de Gerenciamento")
+    col_senha, col_cargo, col_del = st.columns(3)
+    
+    u_lista = df_u['usuario'].tolist()
+
+    with col_senha:
+        st.write("**🔑 Alterar Senha**")
+        u_s = st.selectbox("Usuário:", u_lista, key="sel_s")
+        nova_s = st.text_input("Nova Senha:", type="password", key="in_s")
+        if st.button("Confirmar Nova Senha"):
+            banco.alterar_senha_usuario(u_s, nova_s)
+            st.success("Senha atualizada!")
+
+    with col_cargo:
+        st.write("**🛡️ Mudar Cargo**")
+        u_c = st.selectbox("Usuário:", u_lista, key="sel_c")
+        novo_n = st.radio("Novo Nível:", ["user", "admin"], horizontal=True, key="rad_c")
+        if st.button("Salvar Novo Cargo"):
+            banco.alterar_nivel_usuario(u_c, novo_n)
+            st.success("Nível alterado!")
+            st.rerun()
+
+    with col_del:
+        st.write("**🗑️ Remover Conta**")
+        # Bloqueia a exclusão do admin principal por segurança
+        u_d = st.selectbox("Usuário:", [u for u in u_lista if u != 'admin'], key="sel_d")
+        if st.button("EXCLUIR PERMANENTE", type="primary"):
+            if banco.deletar_usuario(u_d):
+                st.success("Removido!")
+                st.rerun()
+
+elif escolha == "🎯 Metas":
+    st.header("🎯 Definir Planejamento")
+    cat_m = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
+    lim_m = st.number_input("Limite Mensal", min_value=0.0)
+    if st.button("SALVAR META"):
+        banco.definir_meta(st.session_state.user, cat_m, lim_m)
+        st.success("Meta atualizada!")
