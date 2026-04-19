@@ -8,18 +8,21 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
+    # Tabela de usuários com suporte a salário
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
+    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Tenta adicionar a coluna salario caso o banco seja antigo
+    # Adiciona a coluna salario se ela não existir (para bancos de dados antigos)
     try:
         c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
     except:
         pass
 
+    # Cria usuário admin padrão se não existir
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
@@ -100,3 +103,18 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
     c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor) VALUES (?, ?, ?, ?, ?)",
               (usuario, str(data), categoria, descricao, valor))
     conn.commit()
+    conn.close()
+
+def buscar_gastos(usuario, nivel):
+    conn = conectar()
+    query = "SELECT id, data, categoria, descricao, valor FROM gastos WHERE usuario=?"
+    df = pd.read_sql(query, conn, params=(usuario,))
+    conn.close()
+    return df
+
+def deletar_gasto(id_gasto):
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("DELETE FROM gastos WHERE id=?", (id_gasto,))
+    conn.commit()
+    conn.close()
