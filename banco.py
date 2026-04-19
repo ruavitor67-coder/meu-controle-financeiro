@@ -97,21 +97,22 @@ def alterar_nivel_usuario(nome, nivel):
 
 def deletar_usuario(nome):
     nome_alvo = nome.lower().strip()
-    if nome_alvo == 'vitim': return False # Proteção contra auto-exclusão
-    
-    conn = conectar()
-    try:
-        c = conn.cursor()
-        # Remove dependências para não travar
-        c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
-        c.execute("DELETE FROM metas WHERE usuario=?", (nome,))
-        c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
-        conn.commit()
-        return True
-    except:
+    if nome_alvo == 'vitim': 
         return False
-    finally:
-        conn.close()
+        
+    # Usar o 'with' garante que o banco salve (commit) e feche na hora
+    try:
+        with conectar() as conn:
+            c = conn.cursor()
+            # 1. Remove os gastos desse usuário para não travar a exclusão
+            c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
+            # 2. Remove o usuário da tabela de usuários
+            c.execute("DELETE FROM usuarios WHERE usuario=?", (nome,))
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Erro ao deletar: {e}")
+        return False
 
 def definir_meta(usuario, categoria, limite):
     conn = conectar()
