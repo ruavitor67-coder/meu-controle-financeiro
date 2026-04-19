@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 import plotly.express as px
 from datetime import date
 import banco
@@ -22,8 +23,9 @@ if not st.session_state.logado:
     u = st.text_input("Usuário", key="login_user")
     s = st.text_input("Senha", type="password", key="login_pass")
 
-    if st.button("Entrar", key="btn_login"):
+    if st.button("Entrar"):
         nivel = banco.validar_login(u, s)
+
         if nivel:
             st.session_state.logado = True
             st.session_state.user = u
@@ -32,13 +34,13 @@ if not st.session_state.logado:
         else:
             st.error("Login inválido")
 
-    # ================= RECUPERAÇÃO =================
+    # ================= RECUPERAR SENHA =================
     st.markdown("---")
     st.subheader("🔑 Recuperar senha")
 
-    user_reset = st.text_input("Usuário para recuperação", key="reset_user")
+    user_reset = st.text_input("Usuário", key="reset_user")
 
-    if st.button("Enviar código", key="btn_codigo"):
+    if st.button("Enviar código"):
         email = banco.buscar_email(user_reset)
 
         if email:
@@ -47,7 +49,7 @@ if not st.session_state.logado:
             banco.enviar_email(email, codigo)
 
             st.session_state.reset_user_ok = user_reset
-            st.success("Código enviado para o e-mail")
+            st.success("Código enviado")
         else:
             st.error("Usuário não encontrado")
 
@@ -55,30 +57,31 @@ if not st.session_state.logado:
 
         codigo_digitado = st.text_input("Código recebido", key="codigo_input")
 
-        if st.button("Validar código", key="btn_validar"):
+        if st.button("Validar código"):
             if banco.validar_codigo(st.session_state.reset_user_ok, codigo_digitado):
                 st.session_state.codigo_valido = True
-                st.success("Código validado ✅")
+                st.success("Código válido")
             else:
-                st.error("Código inválido ou expirado")
+                st.error("Código inválido")
 
     if st.session_state.get("codigo_valido"):
 
         nova_senha = st.text_input("Nova senha", type="password", key="nova_senha")
 
-        if st.button("Confirmar troca", key="btn_confirmar"):
+        if st.button("Trocar senha"):
             banco.redefinir_senha(st.session_state.reset_user_ok, nova_senha)
 
             del st.session_state["codigo_valido"]
             del st.session_state["reset_user_ok"]
 
-            st.success("Senha alterada com sucesso")
+            st.success("Senha alterada")
 
 # ================= SISTEMA =================
 else:
 
     user = st.session_state.user
 
+    # ================= SIDEBAR =================
     with st.sidebar:
 
         st.title(f"👤 {user}")
@@ -88,38 +91,38 @@ else:
 
         with st.expander("💰 Salário"):
             novo_salario = st.number_input("Valor", value=float(salario), key="salario")
-            if st.button("Salvar Salário", key="btn_salario"):
+            if st.button("Salvar salário"):
                 banco.atualizar_salario(user, novo_salario)
                 st.rerun()
 
         with st.expander("🎯 Meta"):
             nova_meta = st.number_input("Valor", value=float(meta), key="meta")
-            if st.button("Salvar Meta", key="btn_meta"):
+            if st.button("Salvar meta"):
                 banco.atualizar_meta(user, nova_meta)
                 st.rerun()
 
         st.markdown("---")
 
-        if st.button("📊 Dashboard", key="nav_dash"):
+        if st.button("📊 Dashboard"):
             st.session_state.pagina = "dashboard"
             st.rerun()
 
-        if st.button("💸 Gasto", key="nav_gasto"):
+        if st.button("💸 Novo Gasto"):
             st.session_state.pagina = "gasto"
             st.rerun()
 
-        if st.button("⚙️ Configurações", key="nav_config"):
+        if st.button("⚙️ Configurações"):
             st.session_state.pagina = "config"
             st.rerun()
 
         if st.session_state.nivel == "admin":
-            if st.button("👤 Admin", key="nav_admin"):
+            if st.button("👥 Admin"):
                 st.session_state.pagina = "admin"
                 st.rerun()
 
         st.markdown("---")
 
-        if st.button("Sair", key="btn_sair"):
+        if st.button("Sair"):
             st.session_state.logado = False
             st.rerun()
 
@@ -129,29 +132,55 @@ else:
     # ================= DASHBOARD =================
     if pagina == "dashboard":
 
-        st.title("📊 Dashboard")
+        st.title("📊 Dashboard Financeiro")
 
-        if not df.empty:
-
-            df['data'] = df['data'].astype('datetime64[ns]')
-            df['mes'] = df['data'].dt.to_period('M').astype(str)
-
-            total = df['valor'].sum()
-
-            c1, c2, c3 = st.columns(3)
-            c1.metric("Salário", f"R$ {salario:.2f}")
-            c2.metric("Gastos", f"R$ {total:.2f}")
-            c3.metric("Saldo", f"R$ {salario - total:.2f}")
-
-            st.plotly_chart(px.pie(df, values='valor', names='categoria'))
-
-            df_mes = df.groupby('mes')['valor'].sum().reset_index()
-            st.plotly_chart(px.bar(df_mes, x='mes', y='valor'))
-
-        else:
+        if df.empty:
             st.info("Sem dados")
+            st.stop()
 
-    # ================= GASTO =================
+        df['data'] = pd.to_datetime(df['data'])
+
+        # ===== FILTROS =====
+        col1, col2 = st.columns(2)
+
+        data_inicio = col1.date_input("Data inicial", df['data'].min(), key="inicio")
+        data_fim = col2.date_input("Data final", df['data'].max(), key="fim")
+
+        df_filtrado = df[
+            (df['data'] >= pd.to_datetime(data_inicio)) &
+            (df['data'] <= pd.to_datetime(data_fim))
+        ]
+
+        if df_filtrado.empty:
+            st.warning("Sem dados no período")
+            st.stop()
+
+        total = df_filtrado['valor'].sum()
+        saldo = salario - total
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric("💰 Salário", f"R$ {salario:,.2f}")
+        c2.metric("💸 Gastos", f"R$ {total:,.2f}")
+        c3.metric("📈 Saldo", f"R$ {saldo:,.2f}")
+
+        st.markdown("---")
+
+        # ===== GRÁFICO LINHA =====
+        df_linha = df_filtrado.groupby('data')['valor'].sum().reset_index()
+
+        fig1 = px.line(df_linha, x='data', y='valor', markers=True)
+        st.plotly_chart(fig1, use_container_width=True)
+
+        # ===== GRÁFICO CATEGORIA =====
+        df_cat = df_filtrado.groupby('categoria')['valor'].sum().reset_index()
+
+        fig2 = px.pie(df_cat, values='valor', names='categoria', hole=0.5)
+        st.plotly_chart(fig2, use_container_width=True)
+
+        # ===== TABELA =====
+        st.dataframe(df_filtrado.sort_values("data", ascending=False), use_container_width=True)
+
+    # ================= NOVO GASTO =================
     elif pagina == "gasto":
 
         st.title("💸 Novo Gasto")
@@ -160,14 +189,14 @@ else:
             d = st.date_input("Data", date.today(), key="data_gasto")
             cat = st.selectbox("Categoria",
                                ["Alimentação","Transporte","Moradia","Lazer"],
-                               key="cat_gasto")
-            desc = st.text_input("Descrição", key="desc_gasto")
-            val = st.number_input("Valor", min_value=0.0, key="valor_gasto")
-            status = st.selectbox("Status", ["Pago","Pendente"], key="status_gasto")
+                               key="cat")
+            desc = st.text_input("Descrição", key="desc")
+            val = st.number_input("Valor", min_value=0.0, key="valor")
+            status = st.selectbox("Status", ["Pago","Pendente"], key="status")
 
             if st.form_submit_button("Salvar"):
                 banco.salvar_gasto(user, d, cat, desc, val, status)
-                st.success("Gasto salvo")
+                st.success("Salvo")
                 st.rerun()
 
     # ================= CONFIG =================
@@ -177,7 +206,9 @@ else:
 
         if not df.empty:
             for _, r in df.iterrows():
+
                 c1, c2 = st.columns([6,1])
+
                 c1.write(f"{r['data']} | {r['descricao']} | R$ {r['valor']:.2f}")
 
                 if c2.button("🗑️", key=f"del_{r['id']}"):
@@ -212,7 +243,11 @@ else:
         for _, r in df_users.iterrows():
             with st.expander(r['usuario']):
 
-                nova_senha = st.text_input("Nova senha", type="password", key=f"senha_{r['usuario']}")
+                nova_senha = st.text_input(
+                    "Nova senha",
+                    type="password",
+                    key=f"senha_{r['usuario']}"
+                )
 
                 if st.button("Alterar senha", key=f"btn_senha_{r['usuario']}"):
                     if nova_senha:
