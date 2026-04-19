@@ -12,7 +12,7 @@ banco.criar_tabelas()
 if "logado" not in st.session_state:
     st.session_state.logado = False
 
-# LOGIN
+# ================= LOGIN =================
 if not st.session_state.logado:
     st.title("🔐 Login")
 
@@ -29,7 +29,7 @@ if not st.session_state.logado:
         else:
             st.error("Login inválido")
 
-# SISTEMA
+# ================= SISTEMA =================
 else:
     st.sidebar.title(f"👤 {st.session_state.user}")
 
@@ -57,7 +57,7 @@ else:
     df = banco.buscar_gastos(st.session_state.user)
     df = utils.preparar_dados(df)
 
-    # DASHBOARD
+    # ================= DASHBOARD =================
     if escolha == "Dashboard":
         st.title("📊 Dashboard")
 
@@ -87,9 +87,9 @@ else:
                     banco.deletar_gasto(row['id'])
                     st.rerun()
         else:
-            st.info("Sem dados")
+            st.info("Sem dados ainda")
 
-    # NOVO GASTO
+    # ================= NOVO GASTO =================
     elif escolha == "Novo Gasto":
         st.title("💸 Novo Gasto")
 
@@ -101,49 +101,85 @@ else:
             status = st.selectbox("Status", ["Pago","Pendente"])
 
             if st.form_submit_button("Salvar"):
-                banco.salvar_gasto(st.session_state.user, d, cat, desc, val, status)
+                banco.salvar_gasto(
+                    st.session_state.user, d, cat, desc, val, status
+                )
                 st.success("Salvo")
                 st.rerun()
 
-    # ADMIN
+    # ================= ADMIN ORGANIZADO =================
     elif escolha == "Admin":
         st.title("👥 Administração")
 
+        abas = st.tabs(["👤 Usuários", "💰 Salários", "🔐 Segurança"])
         df_users = banco.listar_usuarios()
 
-        for _, row in df_users.iterrows():
-            with st.expander(f"👤 {row['usuario']}"):
+        # ===== ABA 1 - USUÁRIOS =====
+        with abas[0]:
+            st.subheader("Criar usuário")
 
-                col1, col2 = st.columns(2)
+            with st.form("novo_user"):
+                u = st.text_input("Usuário")
+                s = st.text_input("Senha", type="password")
+                n = st.selectbox("Perfil", ["user","admin"])
+
+                if st.form_submit_button("Criar"):
+                    if banco.adicionar_usuario(u, s, n):
+                        st.success("Usuário criado")
+                        st.rerun()
+                    else:
+                        st.error("Usuário já existe")
+
+            st.divider()
+            st.subheader("Lista de usuários")
+            st.dataframe(df_users)
+
+        # ===== ABA 2 - SALÁRIOS =====
+        with abas[1]:
+            st.subheader("Editar salários")
+
+            for _, row in df_users.iterrows():
+                col1, col2 = st.columns([3,1])
 
                 novo_salario = col1.number_input(
-                    "Salário",
+                    f"{row['usuario']}",
                     value=float(row['salario']),
                     key=f"sal_{row['usuario']}"
                 )
 
-                if col1.button("Salvar Salário", key=f"btn_sal_{row['usuario']}"):
+                if col2.button("Salvar", key=f"btn_sal_{row['usuario']}"):
                     banco.atualizar_salario_admin(row['usuario'], novo_salario)
+                    st.success(f"Salário atualizado: {row['usuario']}")
                     st.rerun()
 
-                novo_nivel = col2.selectbox(
-                    "Perfil",
-                    ["user","admin"],
-                    index=0 if row['nivel']=="user" else 1,
-                    key=f"nivel_{row['usuario']}"
-                )
+        # ===== ABA 3 - SEGURANÇA =====
+        with abas[2]:
+            st.subheader("Alterar senha e perfil")
 
-                if col2.button("Salvar Perfil", key=f"btn_nivel_{row['usuario']}"):
-                    banco.alterar_nivel(row['usuario'], novo_nivel)
-                    st.rerun()
+            for _, row in df_users.iterrows():
+                with st.expander(f"{row['usuario']}"):
 
-                nova_senha = st.text_input(
-                    "Nova senha",
-                    type="password",
-                    key=f"senha_{row['usuario']}"
-                )
+                    # SENHA
+                    nova_senha = st.text_input(
+                        "Nova senha",
+                        type="password",
+                        key=f"senha_{row['usuario']}"
+                    )
 
-                if st.button("Alterar Senha", key=f"btn_senha_{row['usuario']}"):
-                    if nova_senha:
-                        banco.alterar_senha(row['usuario'], nova_senha)
-                        st.success("Senha alterada")
+                    if st.button("Alterar Senha", key=f"btn_senha_{row['usuario']}"):
+                        if nova_senha:
+                            banco.alterar_senha(row['usuario'], nova_senha)
+                            st.success("Senha alterada")
+
+                    # PERFIL
+                    novo_nivel = st.selectbox(
+                        "Perfil",
+                        ["user","admin"],
+                        index=0 if row['nivel']=="user" else 1,
+                        key=f"nivel_{row['usuario']}"
+                    )
+
+                    if st.button("Salvar Perfil", key=f"btn_nivel_{row['usuario']}"):
+                        banco.alterar_nivel(row['usuario'], novo_nivel)
+                        st.success("Perfil atualizado")
+                        st.rerun()
