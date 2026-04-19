@@ -39,7 +39,7 @@ else:
     st.sidebar.metric("Salário", f"R$ {salario:.2f}")
 
     with st.sidebar.expander("🎯 Meta"):
-        nova_meta = st.number_input("Meta mensal", value=float(meta))
+        nova_meta = st.number_input("Meta", value=float(meta))
         if st.button("Salvar Meta"):
             banco.atualizar_meta(st.session_state.user, nova_meta)
             st.rerun()
@@ -57,7 +57,7 @@ else:
     df = banco.buscar_gastos(st.session_state.user)
     df = utils.preparar_dados(df)
 
-    # ================= DASHBOARD =================
+    # DASHBOARD
     if escolha == "Dashboard":
         st.title("📊 Dashboard")
 
@@ -69,87 +69,81 @@ else:
             c2.metric("Gastos", f"R$ {total:.2f}")
             c3.metric("Saldo", f"R$ {salario-total:.2f}")
 
-            # META
-            if meta > 0:
-                progresso = total / meta
-                st.subheader("Progresso da Meta")
-                st.progress(min(progresso, 1.0))
-
-            # FILTRO
-            col1, col2 = st.columns(2)
-            inicio = col1.date_input("Data inicial", date.today())
-            fim = col2.date_input("Data final", date.today())
-
-            df_filtrado = df[
-                (df['data'] >= str(inicio)) &
-                (df['data'] <= str(fim))
-            ]
-
-            # GRÁFICO PIZZA
-            fig = px.pie(df_filtrado, values='valor', names='categoria')
+            fig = px.pie(df, values='valor', names='categoria')
             st.plotly_chart(fig, use_container_width=True)
 
-            # LISTA DE GASTOS
             st.subheader("📋 Lançamentos")
 
             for _, row in df.iterrows():
                 col1, col2, col3 = st.columns([5,1,1])
 
                 col1.info(
-                    f"{row['data']} | {row['categoria']} | "
-                    f"{row['descricao']} | R$ {row['valor']:.2f}"
+                    f"{row['data']} | {row['categoria']} | {row['descricao']} | R$ {row['valor']:.2f}"
                 )
 
-                if row['status'] == "Pago":
-                    col2.success("Pago")
-                else:
-                    col2.warning("Pendente")
+                col2.write(row['status'])
 
                 if col3.button("🗑️", key=row['id']):
                     banco.deletar_gasto(row['id'])
                     st.rerun()
-
-            # DOWNLOAD CSV
-            csv = df.to_csv(index=False).encode()
-            st.download_button("📥 Baixar CSV", csv, "gastos.csv")
-
         else:
-            st.info("Sem dados ainda — cadastre um gasto 👇")
+            st.info("Sem dados")
 
-    # ================= NOVO GASTO =================
+    # NOVO GASTO
     elif escolha == "Novo Gasto":
         st.title("💸 Novo Gasto")
 
         with st.form("form"):
             d = st.date_input("Data", date.today())
-            cat = st.selectbox(
-                "Categoria",
-                ["Alimentação","Transporte","Moradia","Lazer"]
-            )
+            cat = st.selectbox("Categoria", ["Alimentação","Transporte","Moradia","Lazer"])
             desc = st.text_input("Descrição")
             val = st.number_input("Valor", min_value=0.0)
             status = st.selectbox("Status", ["Pago","Pendente"])
 
             if st.form_submit_button("Salvar"):
-                banco.salvar_gasto(
-                    st.session_state.user, d, cat, desc, val, status
-                )
+                banco.salvar_gasto(st.session_state.user, d, cat, desc, val, status)
                 st.success("Salvo")
                 st.rerun()
 
-    # ================= ADMIN =================
+    # ADMIN
     elif escolha == "Admin":
-        st.title("👥 Admin")
+        st.title("👥 Administração")
 
-        with st.form("user"):
-            u = st.text_input("Usuário")
-            s = st.text_input("Senha", type="password")
-            n = st.selectbox("Perfil", ["user","admin"])
+        df_users = banco.listar_usuarios()
 
-            if st.form_submit_button("Criar"):
-                if banco.adicionar_usuario(u, s, n):
-                    st.success("Criado")
-                else:
-                    st.error("Erro")
+        for _, row in df_users.iterrows():
+            with st.expander(f"👤 {row['usuario']}"):
 
-        st.dataframe(banco.listar_usuarios())
+                col1, col2 = st.columns(2)
+
+                novo_salario = col1.number_input(
+                    "Salário",
+                    value=float(row['salario']),
+                    key=f"sal_{row['usuario']}"
+                )
+
+                if col1.button("Salvar Salário", key=f"btn_sal_{row['usuario']}"):
+                    banco.atualizar_salario_admin(row['usuario'], novo_salario)
+                    st.rerun()
+
+                novo_nivel = col2.selectbox(
+                    "Perfil",
+                    ["user","admin"],
+                    index=0 if row['nivel']=="user" else 1,
+                    key=f"nivel_{row['usuario']}"
+                )
+
+                if col2.button("Salvar Perfil", key=f"btn_nivel_{row['usuario']}"):
+                    banco.alterar_nivel(row['usuario'], novo_nivel)
+                    st.rerun()
+
+                nova_senha = st.text_input(
+                    "Nova senha",
+                    type="password",
+                    key=f"senha_{row['usuario']}"
+                )
+
+                if st.button("Alterar Senha", key=f"btn_senha_{row['usuario']}"):
+                    if nova_senha:
+                        banco.alterar_senha(row['usuario'], nova_senha)
+                        st.success("Senha alterada")
