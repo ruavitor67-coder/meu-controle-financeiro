@@ -28,6 +28,17 @@ if not st.session_state.logado:
 
 # --- MENU LATERAL ---
 st.sidebar.title(f"👤 {st.session_state.user.upper()}")
+
+# NOVO: Configurar Salário no Menu Lateral
+st.sidebar.subheader("💵 Meu Salário")
+salario_atual = banco.buscar_salario(st.session_state.user)
+novo_salario = st.sidebar.number_input("Definir Salário Mensal:", min_value=0.0, value=float(salario_atual), step=100.0)
+if st.sidebar.button("Salvar Salário"):
+    banco.atualizar_salario(st.session_state.user, novo_salario)
+    st.sidebar.success("Salário atualizado!")
+    st.rerun()
+
+st.sidebar.divider()
 menu = ["📊 Dashboard", "💸 Lançar Gasto"]
 if st.session_state.role == 'admin':
     menu.append("👥 Gerenciar Usuários")
@@ -53,108 +64,89 @@ if escolha == "💸 Lançar Gasto":
                 banco.salvar_gasto(st.session_state.user, dt, ct, ds, vl)
                 st.success("Gasto registrado!")
             else:
-                st.warning("Preencha a descrição e o valor.")
+                st.warning("Preencha os campos corretamente.")
 
 elif escolha == "👥 Gerenciar Usuários":
     st.header("👥 Painel do Administrador")
-    
     with st.expander("➕ Cadastrar Novo Usuário"):
-        nu = st.text_input("Nome de Usuário")
-        np = st.text_input("Senha Temporária", type="password")
+        nu = st.text_input("Nome")
+        np = st.text_input("Senha", type="password")
         nr = st.radio("Perfil", ["user", "admin"], horizontal=True)
-        if st.button("Confirmar Cadastro"):
+        if st.button("Criar"):
             if nu and np:
-                if banco.adicionar_usuario(nu, np, nr):
-                    st.success(f"Usuário {nu} criado!")
-                    st.rerun()
-                else:
-                    st.error("Usuário já existe.")
+                banco.adicionar_usuario(nu, np, nr)
+                st.rerun()
 
     st.divider()
-    st.subheader("📋 Lista de Acessos")
     df_u = banco.listar_usuarios()
     st.dataframe(df_u, use_container_width=True)
 
-    st.divider()
-    # TRÊS COLUNAS: Senha, Nível e Exclusão
     col_a, col_b, col_c = st.columns(3)
-    
     with col_a:
-        st.subheader("🔑 Senha")
-        u_senha = st.selectbox("Usuário:", df_u['usuario'].tolist(), key="u_s")
-        n_senha = st.text_input("Nova Senha", type="password")
+        u_s = st.selectbox("Senha:", df_u['usuario'].tolist(), key="u_s")
+        n_s = st.text_input("Nova Senha", type="password")
         if st.button("Mudar Senha"):
-            if n_senha:
-                banco.alterar_senha_usuario(u_senha, n_senha)
-                st.success("Senha atualizada!")
-
+            banco.alterar_senha_usuario(u_s, n_s)
     with col_b:
-        st.subheader("🛡️ Cargo")
-        u_nivel = st.selectbox("Usuário:", df_u['usuario'].tolist(), key="u_n")
-        n_nivel = st.radio("Novo Nível:", ["user", "admin"], key="rad_n")
-        if st.button("Alterar Nível"):
-            if u_nivel.lower() == 'vitim':
-                st.error("O mestre não pode ser rebaixado.")
-            else:
-                banco.alterar_nivel_usuario(u_nivel, n_nivel)
-                st.success(f"{u_nivel} agora é {n_nivel}!")
-                st.rerun()
-
+        u_n = st.selectbox("Cargo:", df_u['usuario'].tolist(), key="u_n")
+        n_n = st.radio("Nível:", ["user", "admin"])
+        if st.button("Mudar Nível"):
+            banco.alterar_nivel_usuario(u_n, n_n)
+            st.rerun()
     with col_c:
-        st.subheader("🗑️ Remover")
-        opcoes_del = [u for u in df_u['usuario'].tolist() if u.lower().strip() != 'vitim']
-        if opcoes_del:
-            u_del = st.selectbox("Usuário:", opcoes_del, key="u_d")
-            if st.button("Excluir", type="primary"):
-                if u_del == st.session_state.user:
-                    st.error("Saia para se excluir.")
-                else:
-                    banco.deletar_usuario(u_del)
-                    st.balloons()
-                    st.rerun()
-        else:
-            st.info("Apenas você no sistema.")
+        op_d = [u for u in df_u['usuario'].tolist() if u.lower().strip() != 'vitim']
+        u_d = st.selectbox("Excluir:", op_d, key="u_d")
+        if st.button("Remover", type="primary"):
+            banco.deletar_usuario(u_d)
+            st.rerun()
 
 else: # DASHBOARD
-    st.header("📊 Resumo Financeiro")
+    st.header("📊 Dashboard de Gastos")
     df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
+    salario = banco.buscar_salario(st.session_state.user)
     
     if not df.empty:
         df['data'] = pd.to_datetime(df['data'])
         df['Ano'] = df['data'].dt.year.astype(str)
         
-        col_f1, col_f2 = st.columns(2)
+        c_f1, c_f2 = st.columns(2)
         anos = sorted(df['Ano'].unique(), reverse=True)
-        ano_sel = col_f1.selectbox("Ano", ["Todos"] + anos)
-        
-        meses_nomes = {1:'Jan', 2:'Fev', 3:'Mar', 4:'Abr', 5:'Mai', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Set', 10:'Out', 11:'Nov', 12:'Dez'}
+        ano_sel = c_f1.selectbox("Ano", ["Todos"] + anos)
         
         df_filtrado = df.copy()
         if ano_sel != "Todos":
             df_filtrado = df_filtrado[df_filtrado['Ano'] == ano_sel]
+            meses_nomes = {1:'Jan', 2:'Fev', 3:'Mar', 4:'Abr', 5:'Mai', 6:'Jun', 7:'Jul', 8:'Ago', 9:'Set', 10:'Out', 11:'Nov', 12:'Dez'}
             meses_disp = sorted(df_filtrado['data'].dt.month.unique())
-            mes_sel = col_f2.selectbox("Mês", ["Todos"] + [meses_nomes[m] for m in meses_disp])
+            mes_sel = c_f2.selectbox("Mês", ["Todos"] + [meses_nomes[m] for m in meses_disp])
             if mes_sel != "Todos":
-                num_mes = [k for k, v in meses_nomes.items() if v == mes_sel][0]
-                df_filtrado = df_filtrado[df_filtrado['data'].dt.month == num_mes]
-        else:
-            col_f2.info("Selecione o ano.")
+                num_m = [k for k,v in meses_nomes.items() if v == mes_sel][0]
+                df_filtrado = df_filtrado[df_filtrado['data'].dt.month == num_m]
 
-        c1, c2 = st.columns(2)
-        c1.metric("Gasto Total", f"R$ {df_filtrado['valor'].sum():.2f}")
-        c2.metric("Itens", len(df_filtrado))
+        total_gastos = df_filtrado['valor'].sum()
+        saldo = salario - total_gastos
+
+        # --- EXIBIÇÃO FINANCEIRA ---
+        st.divider()
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Salário", f"R$ {salario:.2f}")
+        m2.metric("Total Gasto", f"R$ {total_gastos:.2f}", delta=f"-{total_gastos:.2f}", delta_color="inverse")
+        m3.metric("Saldo Restante", f"R$ {saldo:.2f}", delta=f"{saldo:.2f}")
+
+        # Barra de Progresso do Salário
+        if salario > 0:
+            percentual = min(total_gastos / salario, 1.0)
+            st.write(f"**Uso do Orçamento: {percentual*100:.1f}%**")
+            cor_barra = "green" if percentual < 0.7 else "orange" if percentual < 0.9 else "red"
+            st.progress(percentual)
+            if saldo < 0:
+                st.error("⚠️ Você ultrapassou seu salário!")
         
         st.divider()
         df_p = df_filtrado.groupby("categoria")["valor"].sum().reset_index()
-        fig = px.pie(df_p, values='valor', names='categoria', hole=0.4)
+        fig = px.pie(df_p, values='valor', names='categoria', hole=0.4, title="Gastos por Categoria")
         st.plotly_chart(fig, use_container_width=True)
 
-        st.subheader("🗑️ Excluir Lançamento")
+        st.subheader("🗑️ Gerenciar Itens")
         df_filtrado['label'] = "ID:" + df_filtrado['id'].astype(str) + " | " + df_filtrado['data'].dt.strftime('%d/%m/%Y') + " | " + df_filtrado['descricao']
-        item = st.selectbox("Escolha o item:", df_filtrado['label'].tolist())
-        if st.button("Confirmar Exclusão", type="primary"):
-            id_id = int(item.split("|")[0].replace("ID:", "").strip())
-            banco.deletar_gasto(id_id)
-            st.rerun()
-    else:
-        st.info("Lance gastos para ativar o painel.")
+        item = st.selectbox
