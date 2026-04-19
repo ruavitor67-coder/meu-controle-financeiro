@@ -70,6 +70,7 @@ def deletar_gasto(id_gasto):
         return False
 
 # IMPORTANTE: Atualize a função buscar_gastos para trazer o ID
+
 def buscar_gastos(u):
     with conectar() as conn:
         # Adicionei o 'id' na busca abaixo para o app saber qual linha apagar
