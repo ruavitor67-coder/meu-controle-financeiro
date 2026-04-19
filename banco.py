@@ -22,6 +22,7 @@ def criar_tabelas():
             c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
         except: pass
         
+        # Admin padrão
         senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
         c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
         conn.commit()
