@@ -15,16 +15,11 @@ def conectar():
 def criar_tabelas():
     with conectar() as conn:
         with conn.cursor() as c:
-            # Cria tabela de usuários
             c.execute("""CREATE TABLE IF NOT EXISTS usuarios 
                          (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)""")
-            
-            # Cria tabela de gastos com TODAS as colunas que o erro apontou
             c.execute("""CREATE TABLE IF NOT EXISTS gastos 
                          (id SERIAL PRIMARY KEY, usuario TEXT, data TEXT, 
                           categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')""")
-            
-            # Admin padrão
             h = hashlib.sha256("admin123".encode()).hexdigest()
             c.execute("INSERT INTO usuarios (usuario, senha, nivel) VALUES ('admin', %s, 'admin') ON CONFLICT DO NOTHING", (h,))
         conn.commit()
@@ -59,6 +54,12 @@ def salvar_gasto(u, d, cat, desc, v, status='Pago'):
                       (u, str(d), cat, desc, v, status))
         conn.commit()
 
+def buscar_gastos(u):
+    with conectar() as conn:
+        # Puxa o ID para que o botão de deletar funcione
+        query = "SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s ORDER BY data DESC"
+        return pd.read_sql(query, conn, params=(u,))
+
 def deletar_gasto(id_gasto):
     try:
         with conectar() as conn:
@@ -66,26 +67,4 @@ def deletar_gasto(id_gasto):
                 c.execute("DELETE FROM gastos WHERE id = %s", (id_gasto,))
             conn.commit()
             return True
-    except:
-        return False
-
-# IMPORTANTE: Atualize a função buscar_gastos para trazer o ID
-
-def buscar_gastos(u):
-    with conectar() as conn:
-        # Adicionei o 'id' na busca abaixo para o app saber qual linha apagar
-        return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s", conn, params=(u,))
-
-# IMPORTANTE: Atualize a função buscar_gastos para trazer o ID
-def buscar_gastos(u):
-    with conectar() as conn:
-        # Adicionei o 'id' na busca abaixo para o app saber qual linha apagar
-        return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s", conn, params=(u,))
-def buscar_gastos(u):
-    with conectar() as conn:
-        # Busca exatamente as colunas que o app.py espera
-        return pd.read_sql("SELECT data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s", conn, params=(u,))
-
-def listar_usuarios():
-    with conectar() as conn:
-        return pd.read_sql("SELECT usuario, nivel, salario FROM usuarios", conn)
+    except: return False
