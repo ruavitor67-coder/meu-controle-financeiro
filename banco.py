@@ -8,13 +8,15 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
+    # Tabela de utilizadores
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
+    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Cria o administrador padrão (admin / admin123)
+    # Criar admin padrão se não existir
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
     
@@ -52,11 +54,9 @@ def salvar_gasto(usuario, data, categoria, descricao, valor):
 
 def buscar_gastos(usuario, nivel):
     conn = conectar()
-    if nivel == 'admin':
-        query = "SELECT data, categoria, descricao, valor, usuario FROM gastos"
-        df = pd.read_sql(query, conn)
-    else:
-        query = "SELECT data, categoria, descricao, valor FROM gastos WHERE usuario=?"
-        df = pd.read_sql(query, conn, params=(usuario,))
+    # PRIVACIDADE TOTAL: A consulta agora filtra sempre pelo utilizador logado,
+    # independentemente de ser admin ou user.
+    query = "SELECT data, categoria, descricao, valor FROM gastos WHERE usuario=?"
+    df = pd.read_sql(query, conn, params=(usuario,))
     conn.close()
     return df
