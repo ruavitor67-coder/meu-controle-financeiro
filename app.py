@@ -9,8 +9,12 @@ st.set_page_config(page_title="Financeiro PRO", layout="wide")
 
 banco.criar_tabelas()
 
+# ================= CONTROLE =================
 if "logado" not in st.session_state:
     st.session_state.logado = False
+
+if "pagina" not in st.session_state:
+    st.session_state.pagina = "dashboard"
 
 # ================= LOGIN =================
 if not st.session_state.logado:
@@ -31,57 +35,66 @@ if not st.session_state.logado:
 
 # ================= SISTEMA =================
 else:
-    st.sidebar.title(f"👤 {st.session_state.user}")
+    user = st.session_state.user
 
-    salario = banco.buscar_salario(st.session_state.user)
-    meta = banco.buscar_meta(st.session_state.user)
+    st.sidebar.title(f"👤 {user}")
+
+    salario = banco.buscar_salario(user)
+    meta = banco.buscar_meta(user)
 
     # ===== SALÁRIO =====
     with st.sidebar.expander("💰 Salário"):
-        novo_salario = st.number_input(
-            "Seu salário",
-            value=float(salario),
-            key="salario_usuario"
-        )
+        novo_salario = st.number_input("Seu salário", value=float(salario))
         if st.button("Salvar Salário"):
-            banco.atualizar_salario(st.session_state.user, novo_salario)
-            st.success("Salário atualizado")
+            banco.atualizar_salario(user, novo_salario)
             st.rerun()
 
     # ===== META =====
     with st.sidebar.expander("🎯 Meta"):
-        nova_meta = st.number_input(
-            "Meta",
-            value=float(meta),
-            key="meta_usuario"
-        )
+        nova_meta = st.number_input("Meta", value=float(meta))
         if st.button("Salvar Meta"):
-            banco.atualizar_meta(st.session_state.user, nova_meta)
-            st.success("Meta atualizada")
+            banco.atualizar_meta(user, nova_meta)
             st.rerun()
 
-    st.sidebar.markdown("---")
+    # ===== DASHBOARD =====
+    with st.sidebar.expander("📊 Dashboard"):
+        if st.button("Abrir Dashboard"):
+            st.session_state.pagina = "dashboard"
+            st.rerun()
 
-    # ===== MENU =====
-    menu = ["Configurações"]
+    # ===== GASTO =====
+    with st.sidebar.expander("💸 Gasto"):
+        if st.button("Novo Gasto"):
+            st.session_state.pagina = "gasto"
+            st.rerun()
+
+    # ===== CONFIGURAÇÕES =====
+    with st.sidebar.expander("⚙️ Configurações"):
+        if st.button("Abrir Configurações"):
+            st.session_state.pagina = "config"
+            st.rerun()
+
+    # ===== ADMIN =====
     if st.session_state.nivel == "admin":
-        menu.insert(0, "Admin")
+        with st.sidebar.expander("👤 Admin"):
+            if st.button("Abrir Admin"):
+                st.session_state.pagina = "admin"
+                st.rerun()
 
-    escolha = st.sidebar.radio("Menu", menu)
-
+    # SAIR
     if st.sidebar.button("Sair"):
         st.session_state.logado = False
         st.rerun()
 
-    # ================= CONFIGURAÇÕES =================
-    if escolha == "Configurações":
-        st.title("⚙️ Configurações")
+    # ================= DADOS =================
+    df = banco.buscar_gastos(user)
+    df = utils.preparar_dados(df)
 
-        df = banco.buscar_gastos(st.session_state.user)
-        df = utils.preparar_dados(df)
+    pagina = st.session_state.pagina
 
-        # DASHBOARD
-        st.subheader("📊 Resumo")
+    # ================= DASHBOARD =================
+    if pagina == "dashboard":
+        st.title("📊 Dashboard")
 
         if not df.empty:
             total = df['valor'].sum()
@@ -94,10 +107,27 @@ else:
             fig = px.pie(df, values='valor', names='categoria')
             st.plotly_chart(fig, use_container_width=True)
         else:
-            st.info("Sem dados ainda")
+            st.info("Sem dados")
 
-        # LISTA DE GASTOS
-        st.subheader("📋 Seus Gastos")
+    # ================= GASTO =================
+    elif pagina == "gasto":
+        st.title("💸 Novo Gasto")
+
+        with st.form("form_gasto"):
+            d = st.date_input("Data", date.today())
+            cat = st.selectbox("Categoria", ["Alimentação","Transporte","Moradia","Lazer"])
+            desc = st.text_input("Descrição")
+            val = st.number_input("Valor", min_value=0.0)
+            status = st.selectbox("Status", ["Pago","Pendente"])
+
+            if st.form_submit_button("Salvar"):
+                banco.salvar_gasto(user, d, cat, desc, val, status)
+                st.success("Salvo")
+                st.rerun()
+
+    # ================= CONFIGURAÇÕES =================
+    elif pagina == "config":
+        st.title("⚙️ Configurações")
 
         if not df.empty:
             for _, row in df.iterrows():
@@ -110,78 +140,47 @@ else:
                 if col2.button("🗑️", key=row['id']):
                     banco.deletar_gasto(row['id'])
                     st.rerun()
-
-        # NOVO GASTO
-        st.markdown("---")
-        st.subheader("💸 Novo Gasto")
-
-        with st.form("form_gasto"):
-            d = st.date_input("Data", date.today())
-            cat = st.selectbox("Categoria", ["Alimentação","Transporte","Moradia","Lazer"])
-            desc = st.text_input("Descrição")
-            val = st.number_input("Valor", min_value=0.0)
-            status = st.selectbox("Status", ["Pago","Pendente"])
-
-            if st.form_submit_button("Salvar"):
-                banco.salvar_gasto(
-                    st.session_state.user, d, cat, desc, val, status
-                )
-                st.success("Gasto salvo")
-                st.rerun()
+        else:
+            st.info("Sem dados")
 
     # ================= ADMIN =================
-    elif escolha == "Admin":
+    elif pagina == "admin":
         st.title("👥 Administração")
 
-        abas = st.tabs(["👤 Usuários", "🔐 Segurança"])
+        abas = st.tabs(["Usuários", "Segurança"])
         df_users = banco.listar_usuarios()
 
         # USUÁRIOS
         with abas[0]:
-            st.subheader("Criar usuário")
-
             with st.form("novo_user"):
                 u = st.text_input("Usuário")
                 s = st.text_input("Senha", type="password")
                 n = st.selectbox("Perfil", ["user","admin"])
 
                 if st.form_submit_button("Criar"):
-                    if banco.adicionar_usuario(u, s, n):
-                        st.success("Usuário criado")
-                        st.rerun()
-                    else:
-                        st.error("Usuário já existe")
+                    banco.adicionar_usuario(u, s, n)
+                    st.rerun()
 
-            st.divider()
-            st.subheader("Lista")
             st.dataframe(df_users)
 
         # SEGURANÇA
         with abas[1]:
-            st.subheader("Gerenciar usuários")
-
             for _, row in df_users.iterrows():
                 with st.expander(row['usuario']):
+                    nova_senha = st.text_input("Nova senha", type="password", key=row['usuario'])
 
-                    nova_senha = st.text_input(
-                        "Nova senha",
-                        type="password",
-                        key="senha_"+row['usuario']
-                    )
-
-                    if st.button("Alterar Senha", key="btn_senha_"+row['usuario']):
-                        if nova_senha:
-                            banco.alterar_senha(row['usuario'], nova_senha)
-                            st.success("Senha alterada")
+                    if st.button("Alterar Senha", key="s"+row['usuario']):
+                        banco.alterar_senha(row['usuario'], nova_senha)
+                        st.success("Senha alterada")
 
                     novo_nivel = st.selectbox(
                         "Perfil",
                         ["user","admin"],
                         index=0 if row['nivel']=="user" else 1,
-                        key="nivel_"+row['usuario']
+                        key="n"+row['usuario']
                     )
 
-                    if st.button("Salvar Perfil", key="btn_nivel_"+row['usuario']):
+                    if st.button("Salvar Perfil", key="p"+row['usuario']):
                         banco.alterar_nivel(row['usuario'], novo_nivel)
                         st.success("Perfil atualizado")
                         st.rerun()
