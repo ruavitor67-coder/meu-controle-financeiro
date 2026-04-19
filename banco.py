@@ -14,20 +14,29 @@ def conectar():
         port=st.secrets["postgres"]["port"]
     )
 
-# CRIAR TABELAS
+# CRIAR / ATUALIZAR TABELAS
 def criar_tabelas():
     conn = conectar()
     with conn.cursor() as c:
 
-        # TABELA USUÁRIOS
+        # TABELA USUÁRIOS (base mínima)
         c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             usuario TEXT PRIMARY KEY,
             senha TEXT,
-            nivel TEXT,
-            salario REAL DEFAULT 0,
-            meta REAL DEFAULT 0
+            nivel TEXT
         )
+        """)
+
+        # 🔥 ATUALIZA COLUNAS (resolve seu erro atual)
+        c.execute("""
+        ALTER TABLE usuarios
+        ADD COLUMN IF NOT EXISTS salario REAL DEFAULT 0
+        """)
+
+        c.execute("""
+        ALTER TABLE usuarios
+        ADD COLUMN IF NOT EXISTS meta REAL DEFAULT 0
         """)
 
         # TABELA GASTOS
@@ -43,7 +52,7 @@ def criar_tabelas():
         )
         """)
 
-        # 🔥 CRIA ADMIN SEM DUPLICAR
+        # ADMIN (sem duplicar)
         senha = pbkdf2_sha256.hash("admin123")
 
         c.execute("""
@@ -57,7 +66,6 @@ def criar_tabelas():
 # LOGIN
 def validar_login(u, s):
     conn = conectar()
-
     with conn.cursor() as c:
         c.execute("SELECT senha, nivel FROM usuarios WHERE usuario=%s", (u,))
         res = c.fetchone()
@@ -86,13 +94,12 @@ def adicionar_usuario(u, s, n):
         senha = pbkdf2_sha256.hash(s)
         with conn.cursor() as c:
             c.execute(
-                "INSERT INTO usuarios VALUES (%s,%s,%s,0,0)",
+                "INSERT INTO usuarios (usuario, senha, nivel) VALUES (%s,%s,%s)",
                 (u, senha, n)
             )
         conn.commit()
         return True
-    except Exception as e:
-        print(e)
+    except:
         return False
 
 # META
@@ -109,7 +116,21 @@ def atualizar_meta(u, v):
         c.execute("UPDATE usuarios SET meta=%s WHERE usuario=%s", (v, u))
     conn.commit()
 
-# FINANCEIRO
+# SALÁRIO
+def buscar_salario(u):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
+        r = c.fetchone()
+        return r[0] if r else 0
+
+def atualizar_salario(u, v):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
+    conn.commit()
+
+# GASTOS
 def salvar_gasto(u, d, cat, desc, v, status):
     conn = conectar()
     with conn.cursor() as c:
@@ -131,17 +152,4 @@ def deletar_gasto(id):
     conn = conectar()
     with conn.cursor() as c:
         c.execute("DELETE FROM gastos WHERE id=%s", (id,))
-    conn.commit()
-
-def buscar_salario(u):
-    conn = conectar()
-    with conn.cursor() as c:
-        c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
-        r = c.fetchone()
-        return r[0] if r else 0
-
-def atualizar_salario(u, v):
-    conn = conectar()
-    with conn.cursor() as c:
-        c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
     conn.commit()
