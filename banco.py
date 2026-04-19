@@ -8,18 +8,13 @@ def conectar():
 def criar_tabelas():
     conn = conectar()
     c = conn.cursor()
-    # Tabela de usuários
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT)''')
-    # Tabela de gastos
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
-    
-    # Usuário admin padrão (pode ser apagado depois pelo vitim)
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
-    
     conn.commit()
     conn.close()
 
@@ -51,16 +46,12 @@ def listar_usuarios():
     return df
 
 def deletar_usuario(nome_usuario):
-    # PROTEÇÃO MESTRE: Impede a exclusão do vitim no nível do banco de dados
     if nome_usuario.lower().strip() == 'vitim': 
         return False
-    
     try:
         conn = conectar()
         c = conn.cursor()
-        # Apaga os gastos do usuário primeiro
         c.execute("DELETE FROM gastos WHERE usuario=?", (nome_usuario,))
-        # Apaga o usuário
         c.execute("DELETE FROM usuarios WHERE usuario=?", (nome_usuario,))
         conn.commit()
         conn.close()
@@ -75,6 +66,17 @@ def alterar_senha_usuario(nome_usuario, nova_senha):
     c.execute("UPDATE usuarios SET senha=? WHERE usuario=?", (nova_senha_hash, nome_usuario))
     conn.commit()
     conn.close()
+
+# NOVA FUNÇÃO: ALTERAR NÍVEL
+def alterar_nivel_usuario(nome_usuario, novo_nivel):
+    if nome_usuario.lower().strip() == 'vitim':
+        return False # O vitim sempre será admin
+    conn = conectar()
+    c = conn.cursor()
+    c.execute("UPDATE usuarios SET nivel=? WHERE usuario=?", (novo_nivel, nome_usuario))
+    conn.commit()
+    conn.close()
+    return True
 
 def salvar_gasto(usuario, data, categoria, descricao, valor):
     conn = conectar()
