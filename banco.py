@@ -15,16 +15,11 @@ def conectar():
 def criar_tabelas():
     with conectar() as conn:
         with conn.cursor() as c:
-            # Cria a tabela de usuários sem apagar o que já existe
             c.execute("""CREATE TABLE IF NOT EXISTS usuarios 
                          (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)""")
-            
-            # Cria a tabela de gastos com ID serial para a lixeira funcionar
             c.execute("""CREATE TABLE IF NOT EXISTS gastos 
                          (id SERIAL PRIMARY KEY, usuario TEXT, data TEXT, 
                           categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')""")
-            
-            # Cria o admin padrão apenas se não houver nenhum
             h = hashlib.sha256("admin123".encode()).hexdigest()
             c.execute("INSERT INTO usuarios (usuario, senha, nivel) VALUES ('admin', %s, 'admin') ON CONFLICT DO NOTHING", (h,))
         conn.commit()
@@ -61,17 +56,14 @@ def salvar_gasto(u, d, cat, desc, v):
 
 def buscar_gastos(u):
     with conectar() as conn:
-        # Puxa o ID para garantir que a lixeira apareça e funcione
         return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s ORDER BY data DESC", conn, params=(u,))
 
 def deletar_gasto(id_gasto):
-    try:
-        with conectar() as conn:
-            with conn.cursor() as c:
-                c.execute("DELETE FROM gastos WHERE id = %s", (id_gasto,))
-            conn.commit()
-            return True
-    except: return False
+    with conectar() as conn:
+        with conn.cursor() as c:
+            c.execute("DELETE FROM gastos WHERE id = %s", (id_gasto,))
+        conn.commit()
+        return True
 
 def listar_usuarios():
     with conectar() as conn:
