@@ -84,35 +84,51 @@ elif escolha == "💸 Lançar Gasto":
 
 elif escolha == "👥 Usuários":
     st.header("👥 Gestão de Usuários")
-    df_u = banco.listar_usuarios()
-    st.dataframe(df_u, use_container_width=True)
     
-    col_a, col_b, col_c = st.columns(3)
+    # 1. Primeiro pegamos a lista de usuários
+    df_u = banco.listar_usuarios()
     u_lista = df_u['usuario'].tolist()
     
+    # 2. Criamos as colunas
+    col_a, col_b, col_c = st.columns(3)
+    
     with col_a:
-        st.subheader("Mudar Senha")
-        u_pw = st.selectbox("Usuário:", u_lista, key="u_pw")
-        n_pw = st.text_input("Senha:", type="password", key="n_pw")
-        if st.button("Confirmar Senha"):
+        st.subheader("🔑 Senha")
+        u_pw = st.selectbox("Usuário:", u_lista, key="s1")
+        n_pw = st.text_input("Nova Senha", type="password", key="s2")
+        if st.button("Alterar Senha"):
             banco.alterar_senha_usuario(u_pw, n_pw)
             st.success("Senha alterada!")
 
     with col_b:
-        st.subheader("Mudar Cargo")
-        u_rl = st.selectbox("Usuário:", u_lista, key="u_rl")
-        n_rl = st.radio("Nível:", ["user", "admin"], key="n_rl")
-        if st.button("Confirmar Nível"):
-            if banco.alterar_nivel_usuario(u_rl, n_rl): st.rerun()
+        st.subheader("🛡️ Nível")
+        u_rl = st.selectbox("Usuário:", u_lista, key="n1")
+        n_rl = st.radio("Nível:", ["user", "admin"], key="n2")
+        if st.button("Alterar Nível"):
+            banco.alterar_nivel_usuario(u_rl, n_rl)
+            st.rerun()
 
     with col_c:
-        st.subheader("Remover")
-        lista_del = [u for u in u_lista if u.lower().strip() != 'vitim']
-        if lista_del:
-            u_del = st.selectbox("Deletar:", lista_del, key="u_del")
-            if st.button("Confirmar Exclusão", type="primary"):
-                # A CORREÇÃO: Deleta e força o rerun imediatamente
-                if banco.deletar_usuario(u_del):
+        st.subheader("🗑️ Remover")
+        # Filtramos para não mostrar o seu usuário na lista de deletar
+        lista_deletar = [u for u in u_lista if u.lower().strip() != 'vitim']
+        
+        if lista_deletar:
+            u_para_remover = st.selectbox("Escolha:", lista_deletar, key="d1")
+            
+            # BOTÃO DE EXCLUSÃO
+            if st.button("CONFIRMAR EXCLUSÃO", type="primary"):
+                # Chamamos a função do banco
+                sucesso = banco.deletar_usuario(u_para_remover)
+                if sucesso:
+                    st.toast(f"Usuário {u_para_remover} excluído!")
+                    # O RERUN É OBRIGATÓRIO PARA O ADMIN SUMIR DA TELA
                     st.rerun() 
+                else:
+                    st.error("Erro ao excluir no banco de dados.")
         else:
-            st.info("Apenas seu usuário resta.")
+            st.info("Só existe o seu usuário.")
+
+    # 3. Mostramos a tabela por último para garantir que ela venha atualizada
+    st.divider()
+    st.dataframe(df_u, use_container_width=True)
