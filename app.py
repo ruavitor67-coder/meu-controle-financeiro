@@ -38,7 +38,6 @@ if not st.session_state.logado:
 
     user_reset = st.text_input("Usuário para recuperação", key="reset_user")
 
-    # ENVIAR CÓDIGO
     if st.button("Enviar código", key="btn_codigo"):
         email = banco.buscar_email(user_reset)
 
@@ -52,7 +51,6 @@ if not st.session_state.logado:
         else:
             st.error("Usuário não encontrado")
 
-    # VALIDAR CÓDIGO
     if "reset_user_ok" in st.session_state:
 
         codigo_digitado = st.text_input("Código recebido", key="codigo_input")
@@ -64,7 +62,6 @@ if not st.session_state.logado:
             else:
                 st.error("Código inválido ou expirado")
 
-    # NOVA SENHA (SÓ APARECE DEPOIS)
     if st.session_state.get("codigo_valido"):
 
         nova_senha = st.text_input("Nova senha", type="password", key="nova_senha")
@@ -163,7 +160,9 @@ else:
 
         with st.form("form_gasto"):
             d = st.date_input("Data", date.today(), key="data_gasto")
-            cat = st.selectbox("Categoria", ["Alimentação","Transporte","Moradia","Lazer"], key="cat_gasto")
+            cat = st.selectbox("Categoria",
+                               ["Alimentação","Transporte","Moradia","Lazer"],
+                               key="cat_gasto")
             desc = st.text_input("Descrição", key="desc_gasto")
             val = st.number_input("Valor", min_value=0.0, key="valor_gasto")
             status = st.selectbox("Status", ["Pago","Pendente"], key="status_gasto")
@@ -233,3 +232,15 @@ else:
                     banco.alterar_nivel(r['usuario'], novo_nivel)
                     st.success("Perfil atualizado")
                     st.rerun()
+
+                st.markdown("---")
+
+                # EXCLUIR USUÁRIO
+                if r['usuario'] != st.session_state.user and r['usuario'] != "admin":
+
+                    if st.button("🗑️ Excluir usuário", key=f"del_{r['usuario']}"):
+                        banco.deletar_usuario(r['usuario'])
+                        st.success("Usuário excluído")
+                        st.rerun()
+                else:
+                    st.warning("Usuário protegido")
