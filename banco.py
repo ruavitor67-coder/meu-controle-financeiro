@@ -15,11 +15,16 @@ def conectar():
 def criar_tabelas():
     with conectar() as conn:
         with conn.cursor() as c:
+            # Cria a tabela de usuários sem apagar o que já existe
             c.execute("""CREATE TABLE IF NOT EXISTS usuarios 
                          (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)""")
+            
+            # Cria a tabela de gastos com ID serial para a lixeira funcionar
             c.execute("""CREATE TABLE IF NOT EXISTS gastos 
                          (id SERIAL PRIMARY KEY, usuario TEXT, data TEXT, 
                           categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')""")
+            
+            # Cria o admin padrão apenas se não houver nenhum
             h = hashlib.sha256("admin123".encode()).hexdigest()
             c.execute("INSERT INTO usuarios (usuario, senha, nivel) VALUES ('admin', %s, 'admin') ON CONFLICT DO NOTHING", (h,))
         conn.commit()
@@ -47,15 +52,16 @@ def atualizar_salario(u, v):
             c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
         conn.commit()
 
-def salvar_gasto(u, d, cat, desc, v, status='Pago'):
+def salvar_gasto(u, d, cat, desc, v):
     with conectar() as conn:
         with conn.cursor() as c:
-            c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor, status) VALUES (%s, %s, %s, %s, %s, %s)", 
-                      (u, str(d), cat, desc, v, status))
+            c.execute("INSERT INTO gastos (usuario, data, categoria, descricao, valor) VALUES (%s, %s, %s, %s, %s)", 
+                      (u, str(d), cat, desc, v))
         conn.commit()
 
 def buscar_gastos(u):
     with conectar() as conn:
+        # Puxa o ID para garantir que a lixeira apareça e funcione
         return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s ORDER BY data DESC", conn, params=(u,))
 
 def deletar_gasto(id_gasto):
@@ -77,16 +83,6 @@ def adicionar_usuario(u, s, n):
             with conn.cursor() as c:
                 h = hashlib.sha256(s.encode()).hexdigest()
                 c.execute("INSERT INTO usuarios (usuario, senha, nivel, salario) VALUES (%s, %s, %s, 0)", (u, h, n))
-            conn.commit()
-            return True
-    except: return False
-
-def deletar_usuario(u):
-    try:
-        with conectar() as conn:
-            with conn.cursor() as c:
-                c.execute("DELETE FROM gastos WHERE usuario=%s", (u,))
-                c.execute("DELETE FROM usuarios WHERE usuario=%s", (u,))
             conn.commit()
             return True
     except: return False
