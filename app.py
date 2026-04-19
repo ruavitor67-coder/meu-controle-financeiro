@@ -91,17 +91,23 @@ elif escolha == "👥 Gerenciar Usuários":
 
     with col_b:
         st.subheader("🗑️ Remover Usuário")
-        u_del = st.selectbox("Selecione para excluir:", df_u['usuario'].tolist(), key="u_d")
-        if st.button("Excluir Usuário", type="primary"):
-            # NOVA TRAVA: Bloqueia apenas a exclusão do 'vitim'
-            if u_del.lower() == 'vitim':
-                st.error("O usuário mestre (vitim) não pode ser removido.")
-            elif u_del == st.session_state.user:
-                st.error("Você não pode excluir a si mesmo enquanto está logado!")
-            else:
-                banco.deletar_usuario(u_del)
-                st.success(f"Usuário {u_del} removido!")
-                st.rerun()
+        # Esconde o 'vitim' da lista de exclusão para evitar erros
+        opcoes_del = [u for u in df_u['usuario'].tolist() if u.lower().strip() != 'vitim']
+        
+        if opcoes_del:
+            u_del = st.selectbox("Selecione para excluir:", opcoes_del, key="u_d")
+            if st.button("Excluir Usuário Selecionado", type="primary"):
+                if u_del == st.session_state.user:
+                    st.error("Você não pode excluir a si mesmo enquanto estiver logado!")
+                else:
+                    if banco.deletar_usuario(u_del):
+                        st.success(f"Usuário {u_del} removido com sucesso!")
+                        st.balloons()
+                        st.rerun()
+                    else:
+                        st.error("Erro ao excluir usuário.")
+        else:
+            st.info("Apenas o usuário mestre (vitim) está cadastrado.")
 
 else: # DASHBOARD
     st.header("📊 Resumo Financeiro")
@@ -126,7 +132,7 @@ else: # DASHBOARD
                 num_mes = [k for k, v in meses_nomes.items() if v == mes_sel][0]
                 df_filtrado = df_filtrado[df_filtrado['data'].dt.month == num_mes]
         else:
-            col_f2.info("Selecione um ano para filtrar.")
+            col_f2.info("Selecione o ano para filtrar.")
 
         c1, c2 = st.columns(2)
         c1.metric("Gasto Total", f"R$ {df_filtrado['valor'].sum():.2f}")
