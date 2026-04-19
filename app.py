@@ -89,4 +89,3 @@ else: # DASHBOARD
         # --- EXIBIÇÃO ---
         c1, c2 = st.columns(2)
         c1.metric(f"Total em {mes_selecionado}", f"R$ {df_filtrado['valor'].sum():.2f}")
-        c
