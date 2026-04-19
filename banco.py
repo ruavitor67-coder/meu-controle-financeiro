@@ -74,6 +74,12 @@ def buscar_gastos(u):
     with conectar() as conn:
         # Adicionei o 'id' na busca abaixo para o app saber qual linha apagar
         return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s", conn, params=(u,))
+
+# IMPORTANTE: Atualize a função buscar_gastos para trazer o ID
+def buscar_gastos(u):
+    with conectar() as conn:
+        # Adicionei o 'id' na busca abaixo para o app saber qual linha apagar
+        return pd.read_sql("SELECT id, data, categoria, descricao, valor, status FROM gastos WHERE usuario=%s", conn, params=(u,))
 def buscar_gastos(u):
     with conectar() as conn:
         # Busca exatamente as colunas que o app.py espera
