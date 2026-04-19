@@ -16,7 +16,7 @@ def criar_tabelas():
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL)''')
     
-    # Usuário mestre padrão
+    # Usuário padrão inicial (você poderá apagar este após logar com o vitim)
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios VALUES ('admin', ?, 'admin')", (senha_admin,))
     
@@ -51,7 +51,10 @@ def listar_usuarios():
     return df
 
 def deletar_usuario(nome_usuario):
-    if nome_usuario == 'admin': return False
+    # TRAVA DE SEGURANÇA: Impede a exclusão do usuário 'vitim'
+    if nome_usuario.lower() == 'vitim': 
+        return False
+    
     conn = conectar()
     c = conn.cursor()
     c.execute("DELETE FROM usuarios WHERE usuario=?", (nome_usuario,))
