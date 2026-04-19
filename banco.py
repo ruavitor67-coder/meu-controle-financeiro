@@ -3,7 +3,11 @@ import pandas as pd
 import streamlit as st
 from passlib.hash import bcrypt
 
-# CONEXÃO (CACHE)
+# 🔐 TRATAMENTO DE SENHA (resolve erro 72 bytes)
+def tratar_senha(s):
+    return s[:72]
+
+# CONEXÃO
 @st.cache_resource
 def conectar():
     return psycopg2.connect(
@@ -41,7 +45,7 @@ def criar_tabelas():
         """)
 
         # Admin padrão
-        senha = bcrypt.hash("admin123")
+        senha = bcrypt.hash(tratar_senha("admin123"))
         c.execute("""
         INSERT INTO usuarios (usuario, senha, nivel)
         VALUES ('admin', %s, 'admin')
@@ -59,7 +63,7 @@ def validar_login(u, s):
 
         if res:
             senha_hash, nivel = res
-            if bcrypt.verify(s, senha_hash):
+            if bcrypt.verify(tratar_senha(s), senha_hash):
                 return nivel
     return None
 
@@ -71,7 +75,7 @@ def listar_usuarios():
 def adicionar_usuario(u, s, n):
     conn = conectar()
     try:
-        senha = bcrypt.hash(s)
+        senha = bcrypt.hash(tratar_senha(s))
         with conn.cursor() as c:
             c.execute("INSERT INTO usuarios VALUES (%s,%s,%s,0,0)", (u, senha, n))
         conn.commit()
@@ -105,7 +109,11 @@ def salvar_gasto(u, d, cat, desc, v, status):
 
 def buscar_gastos(u):
     conn = conectar()
-    return pd.read_sql("SELECT * FROM gastos WHERE usuario=%s ORDER BY data DESC", conn, params=(u,))
+    return pd.read_sql(
+        "SELECT * FROM gastos WHERE usuario=%s ORDER BY data DESC",
+        conn,
+        params=(u,)
+    )
 
 def deletar_gasto(id):
     conn = conectar()
