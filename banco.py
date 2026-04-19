@@ -4,17 +4,18 @@ import random
 import smtplib
 from email.mime.text import MIMEText
 
+
 # ================= CONEXÃO =================
 def conectar():
     return psycopg2.connect(
-        host="aws-1-us-east-2.pooler.supabase.com",
+        host="db.gpmhnytpcbypqdocuxtq.supabase.co",  # conexão direta
         database="postgres",
-        user="postgres.gpmhnytpcbypqdocuxtq",
+        user="postgres",
         password="Joseantony890@@",
-        port="6543",
-        sslmode="require",
-        options='-c search_path=public'
+        port=5432,
+        sslmode="require"
     )
+
 
 # ================= CRIAR TABELAS =================
 def criar_tabelas():
@@ -61,17 +62,18 @@ def criar_tabelas():
     )
     """)
 
-    # ADMIN PADRÃO
+    # cria admin padrão
     senha = pbkdf2_sha256.hash("admin123")
 
     c.execute("""
     INSERT INTO usuarios (usuario, email, senha, nivel)
-    VALUES ('admin', 'admin@email.com', %s, 'admin')
+    VALUES (%s, %s, %s, %s)
     ON CONFLICT (usuario) DO NOTHING
-    """, (senha,))
+    """, ("admin", "admin@email.com", senha, "admin"))
 
     conn.commit()
     conn.close()
+
 
 # ================= LOGIN =================
 def validar_login(usuario, senha):
@@ -82,10 +84,11 @@ def validar_login(usuario, senha):
     r = c.fetchone()
     conn.close()
 
-    if r:
-        if pbkdf2_sha256.verify(senha, r[0]):
-            return r[1]
+    if r and pbkdf2_sha256.verify(senha, r[0]):
+        return r[1]
+
     return None
+
 
 # ================= USUÁRIOS =================
 def listar_usuarios():
@@ -94,10 +97,12 @@ def listar_usuarios():
 
     c.execute("SELECT usuario, nivel, salario, meta FROM usuarios")
     dados = c.fetchall()
+
     conn.close()
 
     import pandas as pd
-    return pd.DataFrame(dados, columns=["usuario","nivel","salario","meta"])
+    return pd.DataFrame(dados, columns=["usuario", "nivel", "salario", "meta"])
+
 
 def adicionar_usuario(usuario, email, senha, nivel):
     conn = conectar()
@@ -114,6 +119,7 @@ def adicionar_usuario(usuario, email, senha, nivel):
     conn.commit()
     conn.close()
 
+
 def excluir_usuario(usuario):
     conn = conectar()
     c = conn.cursor()
@@ -121,6 +127,7 @@ def excluir_usuario(usuario):
     c.execute("DELETE FROM usuarios WHERE usuario=%s", (usuario,))
     conn.commit()
     conn.close()
+
 
 def redefinir_senha(usuario, nova_senha):
     conn = conectar()
@@ -134,6 +141,7 @@ def redefinir_senha(usuario, nova_senha):
     conn.commit()
     conn.close()
 
+
 def alterar_nivel(usuario, nivel):
     conn = conectar()
     c = conn.cursor()
@@ -144,6 +152,7 @@ def alterar_nivel(usuario, nivel):
     conn.commit()
     conn.close()
 
+
 # ================= SALÁRIO / META =================
 def buscar_salario(usuario):
     conn = conectar()
@@ -151,9 +160,10 @@ def buscar_salario(usuario):
 
     c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-    conn.close()
 
-    return r[0] if r else 0
+    conn.close()
+    return float(r[0]) if r else 0
+
 
 def atualizar_salario(usuario, valor):
     conn = conectar()
@@ -165,15 +175,17 @@ def atualizar_salario(usuario, valor):
     conn.commit()
     conn.close()
 
+
 def buscar_meta(usuario):
     conn = conectar()
     c = conn.cursor()
 
     c.execute("SELECT meta FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-    conn.close()
 
-    return r[0] if r else 0
+    conn.close()
+    return float(r[0]) if r else 0
+
 
 def atualizar_meta(usuario, valor):
     conn = conectar()
@@ -184,6 +196,7 @@ def atualizar_meta(usuario, valor):
 
     conn.commit()
     conn.close()
+
 
 # ================= GASTOS =================
 def salvar_gasto(usuario, data, categoria, descricao, valor, status):
@@ -197,6 +210,7 @@ def salvar_gasto(usuario, data, categoria, descricao, valor, status):
 
     conn.commit()
     conn.close()
+
 
 def buscar_gastos(usuario):
     conn = conectar()
@@ -212,8 +226,9 @@ def buscar_gastos(usuario):
 
     import pandas as pd
     return pd.DataFrame(dados, columns=[
-        "id","data","categoria","descricao","valor","status"
+        "id", "data", "categoria", "descricao", "valor", "status"
     ])
+
 
 def deletar_gasto(id):
     conn = conectar()
@@ -223,6 +238,7 @@ def deletar_gasto(id):
     conn.commit()
     conn.close()
 
+
 # ================= CATEGORIAS =================
 def listar_categorias(usuario):
     conn = conectar()
@@ -230,9 +246,17 @@ def listar_categorias(usuario):
 
     c.execute("SELECT nome FROM categorias WHERE usuario=%s", (usuario,))
     dados = c.fetchall()
+
     conn.close()
 
-    return [x[0] for x in dados] if dados else []
+    lista = [x[0] for x in dados] if dados else []
+
+    # fallback padrão
+    if not lista:
+        lista = ["Alimentação", "Transporte", "Moradia", "Lazer"]
+
+    return lista
+
 
 def adicionar_categoria(usuario, nome):
     conn = conectar()
@@ -247,6 +271,7 @@ def adicionar_categoria(usuario, nome):
     conn.commit()
     conn.close()
 
+
 # ================= RECUPERAÇÃO =================
 def buscar_email(usuario):
     conn = conectar()
@@ -254,12 +279,14 @@ def buscar_email(usuario):
 
     c.execute("SELECT email FROM usuarios WHERE usuario=%s", (usuario,))
     r = c.fetchone()
-    conn.close()
 
+    conn.close()
     return r[0] if r else None
+
 
 def gerar_codigo():
     return str(random.randint(100000, 999999))
+
 
 def salvar_codigo(usuario, codigo):
     conn = conectar()
@@ -271,15 +298,18 @@ def salvar_codigo(usuario, codigo):
     conn.commit()
     conn.close()
 
+
 def validar_codigo(usuario, codigo):
     conn = conectar()
     c = conn.cursor()
 
     c.execute("SELECT codigo FROM codigos WHERE usuario=%s", (usuario,))
     r = c.fetchone()
+
     conn.close()
 
     return r and r[0] == codigo
+
 
 # ================= EMAIL =================
 def enviar_email(destino, codigo):
@@ -293,5 +323,5 @@ def enviar_email(destino, codigo):
         server.login("seuemail@gmail.com", "SENHA_APP")
         server.sendmail(msg['From'], [destino], msg.as_string())
         server.quit()
-    except:
-        print("Erro ao enviar email")
+    except Exception as e:
+        print("Erro ao enviar email:", e)
