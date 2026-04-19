@@ -3,7 +3,6 @@ import pandas as pd
 import streamlit as st
 from passlib.hash import pbkdf2_sha256
 
-# CONEXÃO
 @st.cache_resource
 def conectar():
     return psycopg2.connect(
@@ -14,12 +13,10 @@ def conectar():
         port=st.secrets["postgres"]["port"]
     )
 
-# CRIAR / ATUALIZAR TABELAS
 def criar_tabelas():
     conn = conectar()
     with conn.cursor() as c:
 
-        # TABELA USUÁRIOS (base mínima)
         c.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             usuario TEXT PRIMARY KEY,
@@ -28,7 +25,6 @@ def criar_tabelas():
         )
         """)
 
-        # 🔥 ATUALIZA COLUNAS (resolve seu erro atual)
         c.execute("""
         ALTER TABLE usuarios
         ADD COLUMN IF NOT EXISTS salario REAL DEFAULT 0
@@ -39,7 +35,6 @@ def criar_tabelas():
         ADD COLUMN IF NOT EXISTS meta REAL DEFAULT 0
         """)
 
-        # TABELA GASTOS
         c.execute("""
         CREATE TABLE IF NOT EXISTS gastos (
             id SERIAL PRIMARY KEY,
@@ -52,7 +47,6 @@ def criar_tabelas():
         )
         """)
 
-        # ADMIN (sem duplicar)
         senha = pbkdf2_sha256.hash("admin123")
 
         c.execute("""
@@ -102,6 +96,26 @@ def adicionar_usuario(u, s, n):
     except:
         return False
 
+# ADMIN FUNÇÕES
+def atualizar_salario_admin(usuario, valor):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (valor, usuario))
+    conn.commit()
+
+def alterar_senha(usuario, nova_senha):
+    conn = conectar()
+    senha_hash = pbkdf2_sha256.hash(nova_senha)
+    with conn.cursor() as c:
+        c.execute("UPDATE usuarios SET senha=%s WHERE usuario=%s", (senha_hash, usuario))
+    conn.commit()
+
+def alterar_nivel(usuario, nivel):
+    conn = conectar()
+    with conn.cursor() as c:
+        c.execute("UPDATE usuarios SET nivel=%s WHERE usuario=%s", (nivel, usuario))
+    conn.commit()
+
 # META
 def buscar_meta(u):
     conn = conectar()
@@ -123,12 +137,6 @@ def buscar_salario(u):
         c.execute("SELECT salario FROM usuarios WHERE usuario=%s", (u,))
         r = c.fetchone()
         return r[0] if r else 0
-
-def atualizar_salario(u, v):
-    conn = conectar()
-    with conn.cursor() as c:
-        c.execute("UPDATE usuarios SET salario=%s WHERE usuario=%s", (v, u))
-    conn.commit()
 
 # GASTOS
 def salvar_gasto(u, d, cat, desc, v, status):
