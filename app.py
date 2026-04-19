@@ -6,10 +6,10 @@ import banco
 def f_moeda(v):
     return f"R$ {v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-st.set_page_config(page_title="Financeiro Premium", page_icon="📈", layout="wide")
+st.set_page_config(page_title="Gestão Financeira Pro", page_icon="📈", layout="wide")
 banco.criar_tabelas()
 
-# --- CSS PROFISSIONAL ---
+# --- CSS PROFISSIONAL AZUL ---
 st.markdown("""
     <style>
     .stApp { background-color: #0B0E14; }
@@ -36,12 +36,12 @@ if not st.session_state.logado:
     with col2:
         u = st.text_input("Usuário")
         p = st.text_input("Senha", type="password")
-        if st.button("ACESSAR SISTEMA"):
+        if st.button("ACESSAR"):
             role = banco.validar_login(u, p)
             if role:
                 st.session_state.logado, st.session_state.user, st.session_state.role = True, u, role
                 st.rerun()
-            else: st.error("Usuário ou senha inválidos.")
+            else: st.error("Credenciais inválidas.")
     st.stop()
 
 # --- SIDEBAR ---
@@ -50,12 +50,12 @@ sal_atual = banco.buscar_salario(st.session_state.user)
 
 if not st.session_state.editando_salario:
     st.sidebar.write(f"Salário: **{f_moeda(sal_atual)}**")
-    if st.sidebar.button("Editar Salário"):
+    if st.sidebar.button("Editar Valor"):
         st.session_state.editando_salario = True
         st.rerun()
 else:
-    n_sal = st.sidebar.number_input("Novo Valor:", value=float(sal_atual))
-    if st.sidebar.button("Salvar Salário"):
+    n_sal = st.sidebar.number_input("Novo Salário:", value=float(sal_atual))
+    if st.sidebar.button("Salvar"):
         banco.atualizar_salario(st.session_state.user, n_sal)
         st.session_state.editando_salario = False
         st.rerun()
@@ -64,7 +64,7 @@ st.sidebar.divider()
 menu = ["📊 Dashboard", "💸 Lançamentos", "🎯 Metas"]
 if st.session_state.role == 'admin':
     menu.append("👥 Administração")
-escolha = st.sidebar.selectbox("Navegação", menu)
+escolha = st.sidebar.selectbox("Módulo", menu)
 
 if st.sidebar.button("Sair"):
     st.session_state.logado = False
@@ -78,87 +78,65 @@ if escolha == "📊 Dashboard":
         total = df['valor'].sum()
         c1, c2, c3 = st.columns(3)
         c1.metric("Orçamento", f_moeda(sal_atual))
-        c2.metric("Despesas", f_moeda(total), delta=f"-{f_moeda(total)}", delta_color="inverse")
-        c3.metric("Saldo Líquido", f_moeda(sal_atual - total))
+        c2.metric("Gasto Total", f_moeda(total), delta=f"-{f_moeda(total)}", delta_color="inverse")
+        c3.metric("Livre", f_moeda(sal_atual - total))
         st.plotly_chart(px.pie(df, values='valor', names='categoria', hole=0.5, template="plotly_dark"), use_container_width=True)
         st.dataframe(df.sort_values(by='data', ascending=False), use_container_width=True)
     else:
-        st.info("Nenhum gasto registrado.")
+        st.info("Nenhum dado lançado ainda.")
 
 elif escolha == "💸 Lançamentos":
-    st.header("💸 Novo Registro")
-    with st.form("add_gasto"):
+    st.header("💸 Registrar Gasto")
+    with st.form("form_gasto"):
         c1, c2 = st.columns(2)
         d = c1.date_input("Data")
         cat = c2.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
         desc = st.text_input("Descrição")
         val = st.number_input("Valor", min_value=0.0)
-        if st.form_submit_button("REGISTRAR GASTO"):
+        if st.form_submit_button("REGISTRAR"):
             banco.salvar_gasto(st.session_state.user, d, cat, desc, val)
-            st.success("Lançamento efetuado!")
+            st.success("Salvo!")
 
 elif escolha == "👥 Administração":
     st.header("👥 Gestão de Usuários")
     
-    # 1. Adicionar Novo Usuário
-    with st.expander("➕ Adicionar Novo Usuário", expanded=False):
+    with st.expander("➕ Adicionar Novo Usuário"):
         c1, c2, c3 = st.columns(3)
-        nu = c1.text_input("Nome")
+        nu = c1.text_input("Login")
         np = c2.text_input("Senha", type="password")
-        nr = c3.selectbox("Permissão", ["user", "admin"])
-        if st.button("Criar Conta"):
+        nr = c3.selectbox("Nível", ["user", "admin"])
+        if st.button("Criar"):
             if nu and np:
-                if banco.adicionar_usuario(nu, np, nr): 
-                    st.success(f"Usuário {nu} criado!")
-                    st.rerun()
-                else: st.error("Erro: Usuário já existe.")
-            else: st.warning("Preencha todos os campos.")
+                if banco.adicionar_usuario(nu, np, nr): st.rerun()
+                else: st.error("Usuário já existe.")
     
     st.divider()
-    
-    # 2. Tabela de Usuários
     df_u = banco.listar_usuarios()
-    st.subheader("📋 Usuários Cadastrados")
+    st.subheader("📋 Usuários")
     st.dataframe(df_u, use_container_width=True)
     
     st.divider()
+    st.subheader("⚙️ Ações")
+    c_s, c_c, c_d = st.columns(3)
+    u_list = df_u['usuario'].tolist()
 
-    # 3. Mudar Senha, Cargo e Excluir (EM COLUNAS)
-    st.subheader("⚙️ Ações de Gerenciamento")
-    col_senha, col_cargo, col_del = st.columns(3)
-    
-    u_lista = df_u['usuario'].tolist()
+    with c_s:
+        u_sel_s = st.selectbox("Senha de:", u_list, key="us")
+        n_s = st.text_input("Nova Senha:", type="password", key="ns")
+        if st.button("Mudar Senha"):
+            banco.alterar_senha_usuario(u_sel_s, n_s)
+            st.success("Alterado!")
 
-    with col_senha:
-        st.write("**🔑 Alterar Senha**")
-        u_s = st.selectbox("Usuário:", u_lista, key="sel_s")
-        nova_s = st.text_input("Nova Senha:", type="password", key="in_s")
-        if st.button("Confirmar Nova Senha"):
-            banco.alterar_senha_usuario(u_s, nova_s)
-            st.success("Senha atualizada!")
-
-    with col_cargo:
-        st.write("**🛡️ Mudar Cargo**")
-        u_c = st.selectbox("Usuário:", u_lista, key="sel_c")
-        novo_n = st.radio("Novo Nível:", ["user", "admin"], horizontal=True, key="rad_c")
-        if st.button("Salvar Novo Cargo"):
-            banco.alterar_nivel_usuario(u_c, novo_n)
-            st.success("Nível alterado!")
+    with c_c:
+        u_sel_c = st.selectbox("Cargo de:", u_list, key="uc")
+        n_n = st.radio("Nível:", ["user", "admin"], horizontal=True, key="nn")
+        if st.button("Mudar Nível"):
+            banco.alterar_nivel_usuario(u_sel_c, n_n)
             st.rerun()
 
-    with col_del:
-        st.write("**🗑️ Remover Conta**")
-        # Bloqueia a exclusão do admin principal por segurança
-        u_d = st.selectbox("Usuário:", [u for u in u_lista if u != 'admin'], key="sel_d")
-        if st.button("EXCLUIR PERMANENTE", type="primary"):
-            if banco.deletar_usuario(u_d):
-                st.success("Removido!")
-                st.rerun()
-
-elif escolha == "🎯 Metas":
-    st.header("🎯 Definir Planejamento")
-    cat_m = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
-    lim_m = st.number_input("Limite Mensal", min_value=0.0)
-    if st.button("SALVAR META"):
-        banco.definir_meta(st.session_state.user, cat_m, lim_m)
-        st.success("Meta atualizada!")
+    with c_d:
+        # Pega admin fixo dos secrets para proteger
+        adm_f = st.secrets.get("ADMIN_USER", "admin")
+        u_sel_d = st.selectbox("Excluir:", [u for u in u_list if u != adm_f], key="ud")
+        if st.button("EXCLUIR AGORA", type="primary"):
+            if banco.deletar_usuario(u_sel_d): st.rerun()
