@@ -60,7 +60,6 @@ if escolha == "💸 Lançar Gasto":
 elif escolha == "👥 Gerenciar Usuários":
     st.header("👥 Painel do Administrador")
     
-    # Criar Usuário
     with st.expander("➕ Cadastrar Novo Usuário"):
         nu = st.text_input("Nome de Usuário")
         np = st.text_input("Senha Temporária", type="password")
@@ -94,12 +93,15 @@ elif escolha == "👥 Gerenciar Usuários":
         st.subheader("🗑️ Remover Usuário")
         u_del = st.selectbox("Selecione para excluir:", df_u['usuario'].tolist(), key="u_d")
         if st.button("Excluir Usuário", type="primary"):
-            if u_del != 'admin':
-                banco.deletar_usuario(u_del)
-                st.success("Usuário removido!")
-                st.rerun()
+            # NOVA TRAVA: Bloqueia apenas a exclusão do 'vitim'
+            if u_del.lower() == 'vitim':
+                st.error("O usuário mestre (vitim) não pode ser removido.")
+            elif u_del == st.session_state.user:
+                st.error("Você não pode excluir a si mesmo enquanto está logado!")
             else:
-                st.error("O admin principal não pode ser removido.")
+                banco.deletar_usuario(u_del)
+                st.success(f"Usuário {u_del} removido!")
+                st.rerun()
 
 else: # DASHBOARD
     st.header("📊 Resumo Financeiro")
@@ -109,7 +111,6 @@ else: # DASHBOARD
         df['data'] = pd.to_datetime(df['data'])
         df['Ano'] = df['data'].dt.year.astype(str)
         
-        # Filtros Dinâmicos
         col_f1, col_f2 = st.columns(2)
         anos = sorted(df['Ano'].unique(), reverse=True)
         ano_sel = col_f1.selectbox("Ano", ["Todos"] + anos)
@@ -125,9 +126,8 @@ else: # DASHBOARD
                 num_mes = [k for k, v in meses_nomes.items() if v == mes_sel][0]
                 df_filtrado = df_filtrado[df_filtrado['data'].dt.month == num_mes]
         else:
-            col_f2.info("Selecione um ano para filtrar meses.")
+            col_f2.info("Selecione um ano para filtrar.")
 
-        # Métricas e Gráfico
         c1, c2 = st.columns(2)
         c1.metric("Gasto Total", f"R$ {df_filtrado['valor'].sum():.2f}")
         c2.metric("Itens", len(df_filtrado))
@@ -137,7 +137,6 @@ else: # DASHBOARD
         fig = px.pie(df_p, values='valor', names='categoria', hole=0.4)
         st.plotly_chart(fig, use_container_width=True)
 
-        # Gerenciamento de Gastos
         st.subheader("🗑️ Excluir Lançamento")
         df_filtrado['label'] = "ID:" + df_filtrado['id'].astype(str) + " | " + df_filtrado['data'].dt.strftime('%d/%m/%Y') + " | " + df_filtrado['descricao']
         item = st.selectbox("Escolha o item:", df_filtrado['label'].tolist())
