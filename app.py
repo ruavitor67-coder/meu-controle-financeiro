@@ -30,7 +30,7 @@ if not st.session_state.logado:
 # --- SIDEBAR ---
 st.sidebar.title(f"👤 {st.session_state.user.upper()}")
 
-# Lógica do botão Alterar Salário
+# Melhoria Visual do Salário
 sal_atual = banco.buscar_salario(st.session_state.user)
 if not st.session_state.editando_salario:
     col_v, col_b = st.sidebar.columns([2, 1])
@@ -50,12 +50,10 @@ else:
         st.rerun()
 
 st.sidebar.divider()
-# Restaurando o Menu Completo
-opcoes = ["📊 Dashboard", "💸 Gastos", "🎯 Metas"]
+menu = ["📊 Dashboard", "💸 Lançar Gasto", "🎯 Metas"]
 if st.session_state.role == 'admin':
-    opcoes.append("👥 Usuários")
-
-escolha = st.sidebar.radio("Navegação", opcoes)
+    menu.append("👥 Usuários")
+escolha = st.sidebar.selectbox("Ir para:", menu)
 
 if st.sidebar.button("Sair"):
     st.session_state.logado = False
@@ -64,55 +62,70 @@ if st.sidebar.button("Sair"):
 # --- TELAS ---
 
 if escolha == "📊 Dashboard":
-    st.header("📊 Painel de Controle")
+    st.header("📊 Resumo Financeiro")
     df = banco.buscar_gastos(st.session_state.user)
-    
     if not df.empty:
         df['data'] = pd.to_datetime(df['data'])
-        # Filtros de Data
+        # Filtros e Exportação
         c_ano, c_mes = st.columns(2)
         ano = c_ano.selectbox("Ano", ["Todos"] + list(df['data'].dt.year.unique()))
         df_f = df.copy()
-        if ano != "Todos":
-            df_f = df_f[df_f['data'].dt.year == ano]
+        if ano != "Todos": df_f = df_f[df_f['data'].dt.year == ano]
         
-        # Métricas e Exportação
         total = df_f['valor'].sum()
-        st.metric("Total Gasto no Período", f_moeda(total))
-        
-        # Botão Excel
+        m1, m2, m3 = st.columns(3)
+        m1.metric("Salário", f_moeda(sal_atual))
+        m2.metric("Total Gasto", f_moeda(total), delta_color="inverse")
+        m3.metric("Saldo", f_moeda(sal_atual - total))
+
         output = BytesIO()
         df_f.to_excel(output, index=False)
-        st.download_button("📥 Baixar Relatório Excel", output.getvalue(), "gastos.xlsx")
-        
+        st.download_button("📥 Baixar Excel", output.getvalue(), "gastos.xlsx")
         st.plotly_chart(px.pie(df_f, values='valor', names='categoria', hole=0.4))
     else:
-        st.info("Nenhum gasto encontrado.")
+        st.info("Lance gastos para ver o resumo.")
 
-elif escolha == "💸 Gastos":
-    st.header("💸 Lançar Gasto")
-    with st.form("add"):
-        data = st.date_input("Data")
-        cat = st.selectbox("Categoria", ["Alimentação", "Transporte", "Lazer", "Fixos", "Outros"])
+elif escolha == "💸 Lançar Gasto":
+    st.header("💸 Novo Gasto")
+    with st.form("add_gasto", clear_on_submit=True):
+        c1, c2 = st.columns(2)
+        data = c1.date_input("Data")
+        cat = c2.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
         desc = st.text_input("Descrição")
-        val = st.number_input("Valor", min_value=0.0)
+        valor = st.number_input("Valor", min_value=0.0, format="%.2f")
         if st.form_submit_button("Salvar"):
-            banco.salvar_gasto(st.session_state.user, data, cat, desc, val)
-            st.success("Gasto salvo!")
-
-elif escolha == "🎯 Metas":
-    st.header("🎯 Minhas Metas")
-    cat_meta = st.selectbox("Categoria", ["Alimentação", "Transporte", "Lazer", "Fixos", "Outros"])
-    valor_meta = st.number_input("Limite Mensal", min_value=0.0)
-    if st.button("Definir Meta"):
-        banco.definir_meta(st.session_state.user, cat_meta, valor_meta)
-        st.success("Meta atualizada!")
+            banco.salvar_gasto(st.session_state.user, data, cat, desc, valor)
+            st.success("Salvo!")
 
 elif escolha == "👥 Usuários":
     st.header("👥 Gestão de Usuários")
     df_u = banco.listar_usuarios()
-    st.dataframe(df_u)
-    u_del = st.selectbox("Selecionar Usuário para remover", [u for u in df_u['usuario'] if u != 'vitim'])
-    if st.button("Excluir Usuário", type="primary"):
-        banco.deletar_usuario(u_del)
-        st.rerun()
+    st.dataframe(df_u, use_container_width=True)
+    
+    col_a, col_b, col_c = st.columns(3)
+    with col_a:
+        u_sel = st.selectbox("Mudar Senha:", df_u['usuario'].tolist(), key="u_pw")
+        n_pw = st.text_input("Nova Senha", type="password")
+        if st.button("Confirmar Senha"):
+            banco.alterar_senha_usuario(u_sel, n_pw)
+            st.success("Senha alterada!")
+    with col_b:
+        u_cargo = st.selectbox("Mudar Cargo:", df_u['usuario'].tolist(), key="u_rl")
+        n_rl = st.radio("Nível:", ["user", "admin"])
+        if st.button("Confirmar Cargo"):
+            banco.alterar_nivel_usuario(u_cargo, n_rl)
+            st.rerun()
+    with col_c:
+        deletar_lista = [u for u in df_u['usuario'].tolist() if u.lower() != 'vitim']
+        u_del = st.selectbox("Remover:", deletar_lista, key="u_del")
+        if st.button("Confirmar Exclusão", type="primary"):
+            banco.deletar_usuario(u_del)
+            st.rerun()
+
+elif escolha == "🎯 Metas":
+    st.header("🎯 Metas")
+    cat_meta = st.selectbox("Categoria", ["Alimentação", "Moradia", "Transporte", "Saúde", "Lazer", "Outros"])
+    v_meta = st.number_input("Limite", min_value=0.0)
+    if st.button("Salvar Meta"):
+        banco.definir_meta(st.session_state.user, cat_meta, v_meta)
+        st.success("Meta definida!")
