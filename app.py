@@ -75,36 +75,18 @@ else: # DASHBOARD
     df = banco.buscar_gastos(st.session_state.user, st.session_state.role)
     
     if not df.empty:
+        # --- LÓGICA DO FILTRO DE MÊS ---
+        df['data'] = pd.to_datetime(df['data']) # Converte para formato de data real
+        df['Mes_Ano'] = df['data'].dt.strftime('%m/%Y') # Cria coluna 04/2026, 05/2026...
+        
+        # Seletor de Mês no topo do Dashboard
+        lista_meses = sorted(df['Mes_Ano'].unique(), reverse=True)
+        mes_selecionado = st.selectbox("📅 Filtrar por Mês/Ano:", lista_meses)
+        
+        # Filtra o dataframe com base na escolha
+        df_filtrado = df[df['Mes_Ano'] == mes_selecionado]
+        
+        # --- EXIBIÇÃO ---
         c1, c2 = st.columns(2)
-        c1.metric("Total Gasto", f"R$ {df['valor'].sum():.2f}")
-        c2.metric("Lançamentos", len(df))
-        
-        st.divider()
-        
-        # Gráfico
-        df_p = df.groupby("categoria")["valor"].sum().reset_index()
-        fig = px.pie(df_p, values='valor', names='categoria', hole=0.4, title="Divisão por Categoria")
-        st.plotly_chart(fig, use_container_width=True)
-
-        st.divider()
-        st.subheader("🗑️ Gerenciar Lançamentos")
-        
-        # Criamos uma lista formatada para o seletor
-        # O segredo: adicionamos o ID no texto da seleção para o Python não se confundir
-        df['item_selecao'] = "ID:" + df['id'].astype(str) + " | " + df['data'] + " | " + df['descricao'] + " (R$ " + df['valor'].astype(str) + ")"
-        
-        opcoes_excluir = df['item_selecao'].tolist()
-        selecionado = st.selectbox("Selecione o gasto que deseja apagar:", opcoes_excluir)
-        
-        if st.button("Confirmar Exclusão", type="primary"):
-            # Extraímos o ID real a partir do texto selecionado
-            id_real = int(selecionado.split("|")[0].replace("ID:", "").strip())
-            
-            banco.deletar_gasto(id_real)
-            st.success("Lançamento removido!")
-            st.rerun()
-
-        with st.expander("📂 Ver Tabela Completa"):
-            st.dataframe(df[['data', 'categoria', 'descricao', 'valor']], use_container_width=True)
-    else:
-        st.info("Nenhum dado encontrado. Comece a lançar seus gastos!")
+        c1.metric(f"Total em {mes_selecionado}", f"R$ {df_filtrado['valor'].sum():.2f}")
+        c
