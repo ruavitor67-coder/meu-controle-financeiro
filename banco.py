@@ -8,11 +8,11 @@ from email.mime.text import MIMEText
 # ================= CONEXÃO =================
 def conectar():
     return psycopg2.connect(
-        host="db.gpmhnytpcbypqdocuxtq.supabase.co",  # conexão direta
+        host="aws-1-us-east-2.pooler.supabase.com",  # conexão direta
         database="postgres",
-        user="postgres",
+        user="postgres.gpmhnytpcbypqdocuxtq",
         password="Joseantony890@@",
-        port=5432,
+        port=6543,
         sslmode="require"
     )
 
