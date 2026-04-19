@@ -16,13 +16,11 @@ def criar_tabelas():
         c.execute('''CREATE TABLE IF NOT EXISTS metas 
                      (usuario TEXT, categoria TEXT, limite REAL, PRIMARY KEY(usuario, categoria))''')
         
-        # Garante que a coluna salario existe em bancos antigos
         try:
             c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
         except:
             pass
             
-        # CRIA O ADMIN APENAS SE ELE NÃO EXISTIR (Para não resetar seu salário)
         c.execute("SELECT usuario FROM usuarios WHERE usuario = 'admin'")
         if not c.fetchone():
             hash_padrao = hashlib.sha256("admin123".encode()).hexdigest()
