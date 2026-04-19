@@ -10,22 +10,17 @@ def criar_tabelas():
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS usuarios 
                  (usuario TEXT PRIMARY KEY, senha TEXT, nivel TEXT, salario REAL DEFAULT 0)''')
-    
-    # Adicionada coluna 'status' para Fluxo de Caixa (Pago/Pendente)
     c.execute('''CREATE TABLE IF NOT EXISTS gastos 
                  (id INTEGER PRIMARY KEY AUTOINCREMENT, usuario TEXT, data TEXT, 
                   categoria TEXT, descricao TEXT, valor REAL, status TEXT DEFAULT 'Pago')''')
-    
     c.execute('''CREATE TABLE IF NOT EXISTS metas 
                  (usuario TEXT, categoria TEXT, limite REAL, PRIMARY KEY(usuario, categoria))''')
-    
     try:
         c.execute("ALTER TABLE usuarios ADD COLUMN salario REAL DEFAULT 0")
     except: pass
     try:
         c.execute("ALTER TABLE gastos ADD COLUMN status TEXT DEFAULT 'Pago'")
     except: pass
-
     senha_admin = hashlib.sha256("admin123".encode()).hexdigest()
     c.execute("INSERT OR IGNORE INTO usuarios (usuario, senha, nivel) VALUES ('admin', ?, 'admin')", (senha_admin,))
     conn.commit()
@@ -66,7 +61,7 @@ def salvar_gasto(usuario, data, categoria, descricao, valor, status='Pago'):
 def buscar_gastos(usuario):
     conn = conectar()
     try:
-        df = pd.read_sql("SELECT * FROM gastos WHERE usuario=?", conn)
+        df = pd.read_sql("SELECT * FROM gastos WHERE usuario=?", conn, params=(usuario,))
     except:
         df = pd.DataFrame(columns=['id', 'usuario', 'data', 'categoria', 'descricao', 'valor', 'status'])
     conn.close()
@@ -76,13 +71,6 @@ def atualizar_status_gasto(id_gasto, novo_status):
     conn = conectar()
     c = conn.cursor()
     c.execute("UPDATE gastos SET status=? WHERE id=?", (novo_status, id_gasto))
-    conn.commit()
-    conn.close()
-
-def deletar_gasto(id_gasto):
-    conn = conectar()
-    c = conn.cursor()
-    c.execute("DELETE FROM gastos WHERE id=?", (id_gasto,))
     conn.commit()
     conn.close()
 
@@ -101,7 +89,7 @@ def alterar_senha_usuario(nome, nova_senha):
     conn.close()
 
 def alterar_nivel_usuario(nome, nivel):
-    if nome.lower() == 'vitim': return False
+    if nome.lower().strip() == 'vitim': return False
     conn = conectar()
     c = conn.cursor()
     c.execute("UPDATE usuarios SET nivel=? WHERE usuario=?", (nivel, nome))
@@ -110,7 +98,7 @@ def alterar_nivel_usuario(nome, nivel):
     return True
 
 def deletar_usuario(nome):
-    if nome.lower() == 'vitim': return False
+    if nome.lower().strip() == 'vitim': return False
     conn = conectar()
     c = conn.cursor()
     c.execute("DELETE FROM gastos WHERE usuario=?", (nome,))
@@ -125,9 +113,3 @@ def definir_meta(usuario, categoria, limite):
     c.execute("INSERT OR REPLACE INTO metas VALUES (?, ?, ?)", (usuario, categoria, limite))
     conn.commit()
     conn.close()
-
-def buscar_metas(usuario):
-    conn = conectar()
-    df = pd.read_sql("SELECT categoria, limite FROM metas WHERE usuario=?", conn)
-    conn.close()
-    return df
